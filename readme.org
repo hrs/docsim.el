@@ -1,0 +1,91 @@
+#+title: =docsim.el=
+#+options: toc:nil num:nil
+
+[[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPL%20v3-blue.svg]]
+
+An Emacs tool for finding similar notes. Open a note, hit a key, and see a
+ranked list of notes that look most similar to that one (according to a genuine
+information retrieval algorithm, not just =grep= or something).
+
+* What's this for?
+
+If you're like me, you've got a directory full of hundreds of text files
+about... well, all kinds of stuff. Work, education, projects, journal entries,
+drafts of blog posts, whatever.
+
+I often notice, while writing or reviewing one of these notes, that it'd be
+useful to know which /other/ notes talk about similar things. And while of
+course I can =grep= through those notes, =grep= is a blunt instrument; I might
+pick the wrong search term and miss obvious connections. It'd be nice to be able
+to look at a note, hit a key, and see the other notes that are most similar to
+this one (where "similar" means "uses lots of the same words").
+
+That's what =docsim.el= is for! It provides a function,
+~docsim-show-similar-notes~, which displays a list of links to notes that look
+related to the one you're viewing, ranked by similarity.
+
+At its best this can help you find connections between concepts that you hadn't
+noticed before, which, one could argue, is a big part of what thinking /is/.
+
+Or, at least, it's a big part of what using a [[https://en.wikipedia.org/wiki/Zettelkasten][Zettelkasten]] is: if you use a tool
+like [[https://protesilaos.com/emacs/denote][Denote]] or [[https://www.orgroam.com/][Org-Roam]] you're probably spending some time finding links between
+notes. This can help make that process easier.
+
+See also: [[https://github.com/hrs/docsim#how-it-works][more technical details]]!
+
+* How do I set this up?
+
+=docsim.el= shells out to the [[https://github.com/hrs/docsim][=docsim=]] tool to do most of the work, so you'll
+need to install that on your =$PATH= first. It's a small Go utility with
+[[https://github.com/hrs/docsim/releases/latest][precompiled binaries]] available for most popular platforms, or you can [[https://github.com/hrs/docsim#installation][install it
+from source]].
+
+Once that's done, just install =docsim.el= like any other package. We're not in
+[[https://melpa.org/#/][MELPA]] (yet!), but there are plenty of alternatives like [[https://github.com/radian-software/straight.el][=straight=]] or [[https://github.com/quelpa/quelpa][=quelpa=]].
+Or just clone the repo locally.
+
+With ~use-package~:
+
+#+begin_src emacs-lisp
+  (use-package docsim
+    ;; If you've cloned this repo locally:
+    :load-path "~/path/to/this/cloned/repo"
+
+    :bind ("C-c n d" . docsim-show-similar-notes)
+
+    :custom
+    (docsim-search-directories '("~/directory/where/you/keep/your/notes")))
+#+end_src
+
+If you're installing manually, make sure you first install the dependency =s.el=
+(you likely already have it), then add =docsim.el= to your load path and:
+
+#+begin_src emacs-lisp
+  (require 'docsim)
+  (setq docsim-search-directories '("~/directory/where/you/keep/your/notes"))
+  (global-set-key (kbd "C-c n d") 'docsim-show-similar-notes)
+#+end_src
+
+That keybinding of =C-c n d= is just made up, of course. Use whatever you'd
+like!
+
+* How do I use this?
+
+Open up a note and =M-x docsim-show-similar-notes= (or whatever keybinding
+you've chosen, like =C-c n d= in the example above). You should be presented
+with a buffer containing a ranked list of links to similar notes!
+
+* But I don't write in English!
+
+Because its author is a monoglot---and because it was easy to find a good Go
+stemming library for English---=docsim= defaults to using English stoplists and
+stemming to improve accuracy. If you mostly write in a language /other/ than
+English your results may not be quite as accurate, and you'll definitely want to
+disable that English-specific functionality.
+
+=docsim.el= doesn't yet support custom stoplists (though it will soon!), but
+meanwhile you can disable all English-specific features with:
+
+#+begin_src emacs-lisp
+  (setq docsim-assume-english nil)
+#+end_src
