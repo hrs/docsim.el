@@ -24,7 +24,7 @@
 ;;; First, you'll need to install the `docsim' command-line tool.
 ;;;
 ;;; Next, tell docsim where to find your notes by configuring `(setq
-;;; docsim-notes-directory "~/documents/notes")'.
+;;; docsim-search-directories '("~/documents/notes"))'.
 ;;;
 ;;; Docsim happens to know about Denote links because its author uses and likes
 ;;; it. If you are, too, you can tell docsim not to include notes that are
@@ -55,9 +55,9 @@
   :type 'string
   :group 'docsim)
 
-(defcustom docsim-notes-directory "~/notes"
-  "Directory containing notes."
-  :type 'string
+(defcustom docsim-search-directories '("~/notes")
+  "Directories containing notes to be searched."
+  :type '(repeat string)
   :group 'docsim)
 
 (defcustom docsim-show-scores t
@@ -97,18 +97,13 @@ as good. Sorry."
     (insert-file-contents (docsim--record-path record))
     (cadar (org-collect-keywords '("TITLE")))))
 
-(defun docsim--record-relative-path (record)
-  "Return the path of the RECORD relative to `docsim-notes-directory'."
-  (s-chop-prefix (format "%s/" (expand-file-name docsim-notes-directory))
-                 (docsim--record-path record)))
-
 (defun docsim--record-to-org (record)
   "Format RECORD as a line of Org markup for the results buffer.
 
 If it's an Org document with a `#+title:', use that as the link
-text. If not, do your best by truncating the file path."
+text. If not, do your best by showing the file path."
   (let* ((org-title (docsim--record-title record))
-         (link-text (or org-title (docsim--record-relative-path record)))
+         (link-text (or org-title (docsim--record-path record)))
          (link (format "[[file:%s][%s]]" (docsim--record-path record) link-text))
          (score (if docsim-show-scores
                     (format "%s :: " (docsim--record-score record))
@@ -191,17 +186,19 @@ that already seem to be linked from FILE-NAME."
     (make-docsim--record :path path
                          :score score)))
 
+(defun docsim--quote-path (path)
+  "Wrap PATH in quotes for interpolation into a shell command."
+  (format "\"%s\"" (file-truename path)))
+
 (defun docsim--shell-command (file-name)
   "Return a string containing the `docsim' command to run on FILE-NAME."
-  (if docsim-assume-english
-      (format "%s --best-first --show-scores --omit-query --query %s %s"
-              docsim-executable
-              file-name
-              docsim-notes-directory)
-    (format "%s --no-stemming --no-stoplist --best-first --show-scores --omit-query --query %s %s"
-            docsim-executable
-            file-name
-            docsim-notes-directory)))
+  (s-join " " `(,docsim-executable
+                "--best-first"
+                "--omit-query"
+                ,@(when docsim-show-scores '("--show-scores"))
+                ,@(when (not docsim-assume-english) '("--no-stemming" "--no-stoplist"))
+                "--query" ,(docsim--quote-path file-name)
+                ,@(mapcar 'docsim--quote-path docsim-search-directories))))
 
 (defun docsim--similarity-results (file-name)
   "Run `docsim' on FILE-NAME and return a list of `docsim--record' structs."
