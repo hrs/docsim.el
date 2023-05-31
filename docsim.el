@@ -2,7 +2,7 @@
 
 ;; Author: Harry R. Schwartz <hello@harryrschwartz.com>
 ;; Maintainer: Harry R. Schwartz <hello@harryrschwartz.com>
-;; Package-Requires: ((cl-lib "0.5") (dash "1.2") (s "1.10"))
+;; Package-Requires: ((cl-lib "0.5") (s "1.10"))
 ;; Homepage: https://github.com/hrs/docsim-mode
 
 ;; This file is NOT part of GNU Emacs.
@@ -43,7 +43,6 @@
 
 (eval-when-compile
   (require 'cl-lib)
-  (require 'dash)
   (require 's))
 
 (defgroup docsim nil
@@ -134,20 +133,20 @@ text. If not, do your best by truncating the file path."
 
 (defun docsim--similar-notes-org (file-name)
   "Return an Org-formatted string of results for running `docsim' on FILE-NAME."
-  (->> (docsim--similar-notes file-name)
-       (-map (lambda (record) (docsim--record-to-org record)))
-       (s-join "\n")
-       (s-prepend "Similar notes:\n\n")))
+  (thread-last (docsim--similar-notes file-name)
+               (mapcar (lambda (record) (docsim--record-to-org record)))
+               (s-join "\n")
+               (s-prepend "Similar notes:\n\n")))
 
 (defun docsim--remove-denote-links (file-name records)
   "Return RECORDS excluding notes already linked from FILE-NAME."
   (if docsim-omit-denote-links
       (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
-        (-filter (lambda (record)
-                   (-none? (lambda (denote-id)
-                             (s-contains? denote-id (docsim--record-path record)))
-                           linked-denote-ids))
-                 records))
+        (cl-remove-if-not (lambda (record)
+                            (not (seq-some (lambda (denote-id)
+                                             (s-contains? denote-id (docsim--record-path record)))
+                                           linked-denote-ids)))
+                          records))
     records))
 
 (defun docsim--limit-results (records)
@@ -163,9 +162,9 @@ Return them all if `docsim-limit' is nil."
 
 Include no more that `docsim-limit' results, and omit any results
 that already seem to be linked from FILE-NAME."
-  (->> (docsim--similarity-results file-name)
-       (docsim--remove-denote-links file-name)
-       (docsim--limit-results)))
+  (thread-last (docsim--similarity-results file-name)
+               (docsim--remove-denote-links file-name)
+               (docsim--limit-results)))
 
 (defun docsim--visit-link ()
   "Visit the next availabile link (which is usually on the current line)."
@@ -206,11 +205,11 @@ that already seem to be linked from FILE-NAME."
 
 (defun docsim--similarity-results (file-name)
   "Run `docsim' on FILE-NAME and return a list of `docsim--record' structs."
-  (->> (docsim--shell-command file-name)
-       (shell-command-to-string)
-       (s-trim)
-       (s-lines)
-       (-map (lambda (line) (docsim--parse-record line)))))
+  (thread-last (docsim--shell-command file-name)
+               (shell-command-to-string)
+               (s-trim)
+               (s-lines)
+               (mapcar (lambda (line) (docsim--parse-record line)))))
 
 (defun docsim-show-similar-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.
