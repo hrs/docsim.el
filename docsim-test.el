@@ -134,13 +134,25 @@
   (let ((docsim-executable "docsim")
         (docsim-search-paths '("/tmp/foo" "/tmp/bar")))
 
-    (let ((docsim-assume-english nil))
+    (let ((docsim-assume-english nil)
+          (docsim-stoplist-path nil))
       (should (equal (docsim--shell-command "/tmp/query")
                      "docsim --best-first --omit-query --show-scores --no-stemming --no-stoplist --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))
 
-    (let ((docsim-assume-english t))
+    (let ((docsim-assume-english nil)
+          (docsim-stoplist-path "/tmp/stoplist"))
       (should (equal (docsim--shell-command "/tmp/query")
-                     "docsim --best-first --omit-query --show-scores --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))))
+                     "docsim --best-first --omit-query --show-scores --no-stemming --stoplist \"/tmp/stoplist\" --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))
+
+    (let ((docsim-assume-english t)
+          (docsim-stoplist-path nil))
+      (should (equal (docsim--shell-command "/tmp/query")
+                     "docsim --best-first --omit-query --show-scores --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))
+
+    (let ((docsim-assume-english t)
+          (docsim-stoplist-path "/tmp/stoplist"))
+      (should (equal (docsim--shell-command "/tmp/query")
+                     "docsim --best-first --omit-query --show-scores --stoplist \"/tmp/stoplist\" --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))))
 
 
 (provide 'docsim-test)

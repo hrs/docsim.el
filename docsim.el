@@ -76,8 +76,7 @@
                  (const :tag "Show all results" nil))
   :group 'docsim)
 
-(defcustom docsim-assume-english
-  "docsim"
+(defcustom docsim-assume-english t
   "Assume that notes are in English.
 
 If non-nil, `docsim' can assume that the notes it's comparing are
@@ -85,8 +84,22 @@ written in English, and can therefore apply a stoplist and an
 appropriate stemming algorithm to improve comparison accuracy.
 
 If nil, well, it should still work, but accuracy may not be quite
-as good. Sorry."
+as good. Sorry. You can partially mitigate that by setting a
+custom stoplist with `docsim-stoplist-path'."
   :type 'boolean
+  :group 'docsim)
+
+(defcustom docsim-stoplist-path nil
+  "Path to a custom stoplist file.
+
+A stoplist file is a text file of words that should be completely
+ignored when comparing documents, separated by newlines. In
+English we'd probably include words like \"the\" or \"because\".
+
+If nil `docsim' will assume that it should use its built-in
+English stoplist (unless you've also set `docsim-assume-english'
+to nil)"
+  :type 'string
   :group 'docsim)
 
 (cl-defstruct docsim--record path score)
@@ -202,13 +215,22 @@ that already seem to be linked from FILE-NAME."
   "Wrap PATH in quotes for interpolation into a shell command."
   (format "\"%s\"" (file-truename path)))
 
+(defun docsim--stemming-stoplist-flags ()
+  "Return a list of stemming- and stoplist-related flags to be passed to the shell command."
+  (if docsim-assume-english
+      (when docsim-stoplist-path
+        `("--stoplist" ,(docsim--quote-path docsim-stoplist-path)))
+    (if (not docsim-stoplist-path)
+        '("--no-stemming" "--no-stoplist")
+      `("--no-stemming" "--stoplist" ,(docsim--quote-path docsim-stoplist-path)))))
+
 (defun docsim--shell-command (file-name)
   "Return a string containing the `docsim' command to run on FILE-NAME."
   (s-join " " `(,docsim-executable
                 "--best-first"
                 "--omit-query"
                 "--show-scores"
-                ,@(when (not docsim-assume-english) '("--no-stemming" "--no-stoplist"))
+                ,@(docsim--stemming-stoplist-flags)
                 "--query" ,(docsim--quote-path file-name)
                 ,@(mapcar 'docsim--quote-path docsim-search-paths))))
 

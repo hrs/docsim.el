@@ -80,12 +80,23 @@ with a buffer containing a ranked list of links to similar notes!
 Because its author is a monoglot---and because it was easy to find a good Go
 stemming library for English---=docsim= defaults to using English stoplists and
 stemming to improve accuracy. If you mostly write in a language /other/ than
-English your results may not be quite as accurate, and you'll definitely want to
-disable that English-specific functionality.
+English you might need to tweak things a bit to get comparable results.
 
-=docsim.el= doesn't yet support custom stoplists (though it will soon!), but
-meanwhile you can disable all English-specific features with:
+First, disable those English-specific features:
 
 #+begin_src emacs-lisp
   (setq docsim-assume-english nil)
 #+end_src
+
+Next, optionally, provide a custom stoplist of common words in your language.
+This is a text file of words that don't carry much semantic meaning (like "as"
+or "because" in English) separated by newlines. Words like this would probably
+already be /mostly/ ignored by =docsim=, because words are weighted by how
+rarely they show up, but if you add a stoplist they'll be skipped completely.
+
+#+begin_src emacs-lisp
+  (setq docsim-stoplist-file "~/path/to/my/custom/stoplist.txt")
+#+end_src
+
+There's no universal authority on what constitutes "a good stoplist," but here's
+a [[https://code.google.com/archive/p/stop-words/][repo of stoplists for 29 languages]] that might be helpful!
