@@ -91,11 +91,23 @@ as good. Sorry."
 
 (cl-defstruct docsim--record path score)
 
+(defun docsim--parse-markdown-yaml-title ()
+  "Treat the current buffer as if it might have YAML front matter and attempt to parse the `title:'."
+  (save-excursion
+    (goto-char (point-min))
+    (when (looking-at "^---$")
+        (forward-line 1)
+        (let ((yaml (buffer-substring-no-properties (point)
+                                                    (re-search-forward "^---$"))))
+          (when (string-match "^title: \\(.*\\)$" yaml)
+            (match-string 1 yaml))))))
+
 (defun docsim--record-title (record)
-  "Return the `#+title' of the org file located at FILE-NAME."
+  "Return the `#+title' of the org file associated with RECORD."
   (with-temp-buffer
     (insert-file-contents (docsim--record-path record))
-    (cadar (org-collect-keywords '("TITLE")))))
+    (or (cadar (org-collect-keywords '("TITLE")))
+        (docsim--parse-markdown-yaml-title))))
 
 (defun docsim--record-to-org (record)
   "Format RECORD as a line of Org markup for the results buffer.
