@@ -112,13 +112,13 @@ text. If not, do your best by showing the file path."
 
 (defun docsim--denote-ids-in-string (s)
   "Given a string S, return every string that plausible matches a Denote ID."
-  (let ((denote-id-regexp (rx word-boundary
-                              (= 8 digit)
-                              "T"
-                              (= 6 digit)
-                              word-boundary)))
-    (flatten-list
-     (s-match-strings-all denote-id-regexp s))))
+  (let ((denote-id-regexp (rx "[denote:"
+                              (group (= 8 digit)
+                                     "T"
+                                     (= 6 digit))
+                              "]")))
+    (mapcar #'cadr
+            (s-match-strings-all denote-id-regexp s))))
 
 (defun docsim--denote-ids-in-file (file-name)
   "Given a file FILE-NAME, return every string that plausible matches a Denote ID."
@@ -195,7 +195,7 @@ that already seem to be linked from FILE-NAME."
   (s-join " " `(,docsim-executable
                 "--best-first"
                 "--omit-query"
-                ,@(when docsim-show-scores '("--show-scores"))
+                "--show-scores"
                 ,@(when (not docsim-assume-english) '("--no-stemming" "--no-stoplist"))
                 "--query" ,(docsim--quote-path file-name)
                 ,@(mapcar 'docsim--quote-path docsim-search-paths))))
