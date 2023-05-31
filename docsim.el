@@ -24,7 +24,7 @@
 ;;; First, you'll need to install the `docsim' command-line tool.
 ;;;
 ;;; Next, tell docsim where to find your notes by configuring `(setq
-;;; docsim-search-directories '("~/documents/notes"))'.
+;;; docsim-search-paths '("~/documents/notes"))'.
 ;;;
 ;;; Docsim happens to know about Denote links because its author uses and likes
 ;;; it. If you are, too, you can tell docsim not to include notes that are
@@ -55,8 +55,8 @@
   :type 'string
   :group 'docsim)
 
-(defcustom docsim-search-directories '("~/notes")
-  "Directories containing notes to be searched."
+(defcustom docsim-search-paths '("~/notes")
+  "Directories or files containing notes to be searched."
   :type '(repeat string)
   :group 'docsim)
 
@@ -198,7 +198,7 @@ that already seem to be linked from FILE-NAME."
                 ,@(when docsim-show-scores '("--show-scores"))
                 ,@(when (not docsim-assume-english) '("--no-stemming" "--no-stoplist"))
                 "--query" ,(docsim--quote-path file-name)
-                ,@(mapcar 'docsim--quote-path docsim-search-directories))))
+                ,@(mapcar 'docsim--quote-path docsim-search-paths))))
 
 (defun docsim--similarity-results (file-name)
   "Run `docsim' on FILE-NAME and return a list of `docsim--record' structs."
@@ -212,7 +212,7 @@ that already seem to be linked from FILE-NAME."
   "Display a list of notes that look similar to FILE-NAME.
 
 This calls out to the external `docsim' tool to perform textual
-analysis on all the notes in `docsim-directory', score them by
+analysis on all the notes in `docsim-search-paths', score them by
 similarity to FILE-NAME, and return the sorted results, best
 first.
 

@@ -54,7 +54,7 @@ With ~use-package~:
     :bind ("C-c n d" . docsim-show-similar-notes)
 
     :custom
-    (docsim-search-directories '("~/directory/where/you/keep/your/notes")))
+    (docsim-search-paths '("~/directory/where/you/keep/your/notes")))
 #+end_src
 
 If you're installing manually, make sure you first install the dependency =s.el=
@@ -62,7 +62,7 @@ If you're installing manually, make sure you first install the dependency =s.el=
 
 #+begin_src emacs-lisp
   (require 'docsim)
-  (setq docsim-search-directories '("~/directory/where/you/keep/your/notes"))
+  (setq docsim-search-paths '("~/directory/where/you/keep/your/notes"))
   (global-set-key (kbd "C-c n d") 'docsim-show-similar-notes)
 #+end_src
 
