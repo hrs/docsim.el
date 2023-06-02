@@ -17,7 +17,7 @@
         (score "0.4242"))
 
     ;; A plain text file without any interesting features.
-    (let* ((content (s-join "\n" plain-lines))
+    (let* ((content (mapconcat 'identity plain-lines "\n"))
            (path (make-temp-file "docsim-test" nil nil content))
            (plain-record (make-docsim--record :path path :score score)))
 
@@ -30,7 +30,7 @@
                        (format "- 0.4242 :: [[file:%s][%s]]" path path)))))
 
     ;; An Org document with a "#+title" keyword.
-    (let* ((content (s-join "\n" (cons "#+title: It's an Org file!" plain-lines)))
+    (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
            (path (make-temp-file "docsim-test" nil nil content))
            (org-record (make-docsim--record :path path :score score)))
 
@@ -43,10 +43,12 @@
                        (format "- 0.4242 :: [[file:%s][It's an Org file!]]" path)))))
 
     ;; A Markdown file with some YAML front matter.
-    (let* ((content (s-join "\n" (append '("---"
-                                           "title: It's a Markdown file!"
-                                           "---")
-                                         plain-lines)))
+    (let* ((content (mapconcat 'identity
+                               (append '("---"
+                                         "title: It's a Markdown file!"
+                                         "---")
+                                       plain-lines)
+                               "\n"))
            (path (make-temp-file "docsim-test" nil nil content))
            (markdown-record (make-docsim--record :path path :score score)))
 
@@ -58,38 +60,33 @@
         (should (equal (docsim--record-to-org markdown-record)
                        (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path)))))))
 
+(defvar-local text-with-denote-links
+    (mapconcat 'identity
+               '("This note [[denote:20230531T143312][has many]] Denote"
+                 "links [[denote:20210426T185629]] in [[denote:92830384T918347][it]]."
+                 "And some things 10384718T204817 that aren't!")
+               "\n"))
 
 (ert-deftest docsim--denote-ids-in-string-test ()
-  (let ((content (s-join "\n" '("This note [[denote:20230531T143312][has many]] Denote"
-                                "links [[denote:20210426T185629]] in [[denote:92830384T918347][it]]."
-                                "And some things 10384718T204817 that aren't!"))))
-    (should (equal (docsim--denote-ids-in-string content)
-                   '("20230531T143312" "20210426T185629" "92830384T918347")))))
-
+  (should (equal (docsim--denote-ids-in-string text-with-denote-links)
+                 '("92830384T918347" "20210426T185629" "20230531T143312"))))
 
 (ert-deftest docsim--denote-ids-in-file-test ()
-  (let* ((content (s-join "\n" '("This note [[denote:20230531T143312][has many]] Denote"
-                                 "links [[denote:20210426T185629]] in [[denote:92830384T918347][it]]."
-                                 "And some things 10384718T204817 that aren't!")))
-         (path (make-temp-file "docsim-test" nil nil content)))
+  (let ((path (make-temp-file "docsim-test" nil nil text-with-denote-links)))
     (should (equal (docsim--denote-ids-in-file path)
-                   '("20230531T143312" "20210426T185629" "92830384T918347")))))
-
+                   '("92830384T918347" "20210426T185629" "20230531T143312")))))
 
 (ert-deftest docsim--remove-denote-links-test ()
-  (let* ((content (s-join "\n" '("This note [[denote:20230531T143312][has many]] Denote"
-                                 "links [[denote:20210426T185629]] in [[denote:92830384T918347][it]]."
-                                 "And some things 10384718T204817 that aren't!")))
-         (file-name (make-temp-file "docsim-test" nil nil content))
+  (let* ((docsim-omit-denote-links t)
+         (file-name (make-temp-file "docsim-test" nil nil text-with-denote-links))
          (record-linked (make-docsim--record
                          :path "/tmp/foo/20210426T185629--linked-note.org"
                          :score 0.0))
          (record-unlinked (make-docsim--record
                            :path "/tmp/foo/20201114T143209--unlinked-note.org"
                            :score 0.0)))
-  (should (equal (docsim--remove-denote-links file-name (list record-linked record-unlinked))
-                 (list record-unlinked)))))
-
+    (should (equal (docsim--remove-denote-links file-name (list record-linked record-unlinked))
+                   (list record-unlinked)))))
 
 (ert-deftest docsim--limit-results-test ()
   (let ((docsim-limit 3))
@@ -106,21 +103,34 @@
     (should (equal (docsim--limit-results '(a b c d e f g))
                    '(a b c d e f g)))))
 
-
 (ert-deftest docsim--parse-record-test ()
-  (let ((docsim-show-scores t))
-    (let ((record (docsim--parse-record "0.4242\t/tmp/foo/bar.org")))
-      (should (equal (docsim--record-score record)
-                     "0.4242"))
-      (should (equal (docsim--record-path record)
-                     "/tmp/foo/bar.org"))))
-
-  (let ((record (docsim--parse-record "0.0000\t/tmp/foo/Hello Foo.org")))
+  ;; A "regular" line of docsim output.
+  (let ((record (docsim--parse-record "0.4242\t/tmp/foo/bar.org")))
     (should (equal (docsim--record-score record)
-                   "0.0000"))
+                   "0.4242"))
     (should (equal (docsim--record-path record)
-                   "/tmp/foo/Hello Foo.org"))))
+                   "/tmp/foo/bar.org")))
 
+  ;; An unexpected score length.
+  (let ((record (docsim--parse-record "0.42424242\t/tmp/foo/Hello Foo.org")))
+    (should (equal (docsim--record-score record)
+                   "0.42424242"))
+    (should (equal (docsim--record-path record)
+                   "/tmp/foo/Hello Foo.org")))
+
+  ;; A path with a space in it.
+  (let ((record (docsim--parse-record "0.4242\t/tmp/foo/Hello Foo.org")))
+    (should (equal (docsim--record-score record)
+                   "0.4242"))
+    (should (equal (docsim--record-path record)
+                   "/tmp/foo/Hello Foo.org")))
+
+  ;; A path with a tab in it.
+  (let ((record (docsim--parse-record "0.4242\t/tmp/foo/Hello\tFoo.org")))
+    (should (equal (docsim--record-score record)
+                   "0.4242"))
+    (should (equal (docsim--record-path record)
+                   "/tmp/foo/Hello\tFoo.org"))))
 
 (ert-deftest docsim--quote-path-test ()
   (should (equal (docsim--quote-path "/tmp/foo")
@@ -128,7 +138,6 @@
 
   (should (equal (docsim--quote-path "/tmp/Hello World")
                  "\"/tmp/Hello World\"")))
-
 
 (ert-deftest docsim--shell-command-test ()
   (let ((docsim-executable "docsim")
@@ -153,7 +162,6 @@
           (docsim-stoplist-path "/tmp/stoplist"))
       (should (equal (docsim--shell-command "/tmp/query")
                      "docsim --best-first --omit-query --show-scores --stoplist \"/tmp/stoplist\" --query \"/tmp/query\" \"/tmp/foo\" \"/tmp/bar\"")))))
-
 
 (provide 'docsim-test)
 

@@ -2,7 +2,7 @@
 
 ;; Author: Harry R. Schwartz <hello@harryrschwartz.com>
 ;; Maintainer: Harry R. Schwartz <hello@harryrschwartz.com>
-;; Package-Requires: ((cl-lib "0.5") (s "1.10"))
+;; Package-Requires: ((cl-lib "0.5") (org-mode "9.4"))
 ;; Homepage: https://github.com/hrs/docsim-mode
 
 ;; This file is NOT part of GNU Emacs.
@@ -43,7 +43,7 @@
 
 (eval-when-compile
   (require 'cl-lib)
-  (require 's))
+  (require 'org))
 
 (defgroup docsim nil
   "Find similar documents."
@@ -141,9 +141,14 @@ text. If not, do your best by showing the file path."
                               (group (= 8 digit)
                                      "T"
                                      (= 6 digit))
-                              "]")))
-    (mapcar #'cadr
-            (s-match-strings-all denote-id-regexp s))))
+                              "]"))
+        (i 0)
+        matches)
+    (while (string-match denote-id-regexp s i)
+      (setq matches (cons (match-string 1 s) matches))
+      (setq i (match-end 0)))
+    matches))
+
 
 (defun docsim--denote-ids-in-file (file-name)
   "Given a file FILE-NAME, return every string that plausible matches a Denote ID."
@@ -154,9 +159,9 @@ text. If not, do your best by showing the file path."
 (defun docsim--similar-notes-org (file-name)
   "Return an Org-formatted string of results for running `docsim' on FILE-NAME."
   (thread-last (docsim--similar-notes file-name)
-               (mapcar (lambda (record) (docsim--record-to-org record)))
-               (s-join "\n")
-               (s-prepend "Similar notes:\n\n")))
+               (mapcar #'docsim--record-to-org)
+               ((lambda (xs) (mapconcat 'identity xs "\n")))
+               (concat "Similar notes:\n\n")))
 
 (defun docsim--remove-denote-links (file-name records)
   "Return RECORDS excluding notes already linked from FILE-NAME."
@@ -164,7 +169,7 @@ text. If not, do your best by showing the file path."
       (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
         (cl-remove-if-not (lambda (record)
                             (not (seq-some (lambda (denote-id)
-                                             (s-contains? denote-id (docsim--record-path record)))
+                                             (string-match-p denote-id (docsim--record-path record)))
                                            linked-denote-ids)))
                           records))
     records))
@@ -207,7 +212,8 @@ that already seem to be linked from FILE-NAME."
 
 (defun docsim--parse-record (line)
   "Parse a LINE of `docsim' results into a `docsim--record' struct."
-  (cl-destructuring-bind (score path) (s-split-up-to "\t" line 1)
+  (let* ((score (car (split-string line "\t")))
+         (path (substring line (1+ (length score)))))
     (make-docsim--record :path path
                          :score score)))
 
@@ -226,21 +232,23 @@ that already seem to be linked from FILE-NAME."
 
 (defun docsim--shell-command (file-name)
   "Return a string containing the `docsim' command to run on FILE-NAME."
-  (s-join " " `(,docsim-executable
-                "--best-first"
-                "--omit-query"
-                "--show-scores"
-                ,@(docsim--stemming-stoplist-flags)
-                "--query" ,(docsim--quote-path file-name)
-                ,@(mapcar 'docsim--quote-path docsim-search-paths))))
+  (mapconcat 'identity
+             `(,docsim-executable
+               "--best-first"
+               "--omit-query"
+               "--show-scores"
+               ,@(docsim--stemming-stoplist-flags)
+               "--query" ,(docsim--quote-path file-name)
+               ,@(mapcar 'docsim--quote-path docsim-search-paths))
+             " "))
 
 (defun docsim--similarity-results (file-name)
   "Run `docsim' on FILE-NAME and return a list of `docsim--record' structs."
-  (thread-last (docsim--shell-command file-name)
-               (shell-command-to-string)
-               (s-trim)
-               (s-lines)
-               (mapcar (lambda (line) (docsim--parse-record line)))))
+  (mapcar #'docsim--parse-record
+          (thread-first (docsim--shell-command file-name)
+                        (shell-command-to-string)
+                        (substring 0 -1)
+                        (split-string "\n"))))
 
 (defun docsim-show-similar-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.

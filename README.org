@@ -57,8 +57,7 @@ With ~use-package~:
     (docsim-search-paths '("~/directory/where/you/keep/your/notes")))
 #+end_src
 
-If you're installing manually, make sure you first install the dependency =s.el=
-(you likely already have it), then add =docsim.el= to your load path and:
+If you're installing manually, add =docsim.el= to your load path and:
 
 #+begin_src emacs-lisp
   (require 'docsim)
