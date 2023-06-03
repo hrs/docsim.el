@@ -5,5 +5,5 @@ test: docsim.el docsim-test.el
 	-l org \
 	-l org-element \
 	-l docsim-test.el \
-	--eval "(setq ert-batch-backtrace-right-margin 500)" \
+	--eval "(setq ert-batch-backtrace-right-margin 10000)" \
 	-f ert-run-tests-batch-and-exit
