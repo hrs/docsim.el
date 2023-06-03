@@ -2,7 +2,7 @@
 
 ;; Author: Harry R. Schwartz <hello@harryrschwartz.com>
 ;; Maintainer: Harry R. Schwartz <hello@harryrschwartz.com>
-;; Package-Requires: ((cl-lib "0.5") (org-mode "9.4"))
+;; Package-Requires: ((cl-lib "0.5") (org "8.0"))
 ;; Homepage: https://github.com/hrs/docsim-mode
 
 ;; This file is NOT part of GNU Emacs.
@@ -104,7 +104,7 @@ to nil)"
 
 (cl-defstruct docsim--record path score)
 
-(defun docsim--parse-markdown-yaml-title ()
+(defun docsim--parse-title-markdown-yaml ()
   "Treat the current buffer as if it might have YAML front matter and attempt to parse the `title:'."
   (save-excursion
     (goto-char (point-min))
@@ -115,12 +115,22 @@ to nil)"
           (when (string-match "^title: \\(.*\\)$" yaml)
             (match-string 1 yaml))))))
 
+(defun docsim--parse-title-org ()
+  "Treat the current buffer as if it might contain Org text and attempt to parse the `#+TITLE:'."
+  (if (fboundp 'org-collect-keywords)
+      (cadar (org-collect-keywords '("title")))
+    (save-excursion
+      (goto-char (point-min))
+      (let ((case-fold-search t))
+        (when (search-forward-regexp "^#\\+title:" nil t)
+          (org-element-property :value (org-element-context (org-element-at-point))))))))
+
 (defun docsim--record-title (record)
   "Return the `#+title' of the org file associated with RECORD."
   (with-temp-buffer
     (insert-file-contents (docsim--record-path record))
-    (or (cadar (org-collect-keywords '("TITLE")))
-        (docsim--parse-markdown-yaml-title))))
+    (or (docsim--parse-title-org)
+        (docsim--parse-title-markdown-yaml))))
 
 (defun docsim--record-to-org (record)
   "Format RECORD as a line of Org markup for the results buffer.
