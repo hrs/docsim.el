@@ -178,19 +178,20 @@ text. If not, do your best by showing the file path."
   "Return RECORDS excluding notes already linked from FILE-NAME."
   (if docsim-omit-denote-links
       (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
-        (cl-remove-if-not (lambda (record)
-                            (not (seq-some (lambda (denote-id)
-                                             (string-match-p denote-id (docsim--record-path record)))
-                                           linked-denote-ids)))
-                          records))
+        (cl-remove-if (lambda (record)
+                        (cl-find-if (lambda (denote-id)
+                                      (string-match-p denote-id (docsim--record-path record)))
+                                    linked-denote-ids))
+                      records))
     records))
 
 (defun docsim--limit-results (records)
   "Return RECORDS with no more than `docsim-limit' results.
 
 Return them all if `docsim-limit' is nil."
-  (if docsim-limit
-      (seq-take records docsim-limit)
+  (if (and docsim-limit
+           (> (length records) docsim-limit))
+          (cl-subseq records 0 docsim-limit)
     records))
 
 (defun docsim--similar-notes (file-name)
