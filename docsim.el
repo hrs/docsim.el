@@ -103,8 +103,6 @@ to nil)"
   :type 'string
   :group 'docsim)
 
-(cl-defstruct docsim--record path score)
-
 (defun docsim--parse-title-markdown-yaml ()
   "Treat the current buffer as if it might have YAML front matter and attempt to parse the `title:'."
   (save-excursion
@@ -126,10 +124,10 @@ to nil)"
         (when (search-forward-regexp "^#\\+title:" nil t)
           (org-element-property :value (org-element-context (org-element-at-point))))))))
 
-(defun docsim--record-title (record)
-  "Return the `#+title' of the org file associated with RECORD."
+(defun docsim--record-title (path)
+  "Return the `#+title' of the org file at PATH."
   (with-temp-buffer
-    (insert-file-contents (docsim--record-path record))
+    (insert-file-contents path)
     (or (docsim--parse-title-org)
         (docsim--parse-title-markdown-yaml))))
 
@@ -138,11 +136,11 @@ to nil)"
 
 If it's an Org document with a `#+title:', use that as the link
 text. If not, do your best by showing the file path."
-  (let* ((org-title (docsim--record-title record))
-         (link-text (or org-title (docsim--record-path record)))
-         (link (format "[[file:%s][%s]]" (docsim--record-path record) link-text))
+  (let* ((org-title (docsim--record-title (car record)))
+         (link-text (or org-title (car record)))
+         (link (format "[[file:%s][%s]]" (car record) link-text))
          (score (if docsim-show-scores
-                    (format "%s :: " (docsim--record-score record))
+                    (format "%s :: " (cdr record))
                   "")))
     (format "- %s%s" score link)))
 
@@ -180,7 +178,7 @@ text. If not, do your best by showing the file path."
       (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
         (cl-remove-if (lambda (record)
                         (cl-find-if (lambda (denote-id)
-                                      (string-match-p denote-id (docsim--record-path record)))
+                                      (string-match-p denote-id (car record)))
                                     linked-denote-ids))
                       records))
     records))
@@ -223,11 +221,10 @@ that already seem to be linked from FILE-NAME."
     (select-window (get-mru-window nil t t side-window))))
 
 (defun docsim--parse-record (line)
-  "Parse a LINE of `docsim' results into a `docsim--record' struct."
+  "Parse a LINE of `docsim' results into a record pair."
   (let* ((score (car (split-string line "\t")))
          (path (substring line (1+ (length score)))))
-    (make-docsim--record :path path
-                         :score score)))
+    (cons path score)))
 
 (defun docsim--quote-path (path)
   "Wrap PATH in quotes for interpolation into a shell command."
@@ -255,7 +252,7 @@ that already seem to be linked from FILE-NAME."
              " "))
 
 (defun docsim--similarity-results (file-name)
-  "Run `docsim' on FILE-NAME and return a list of `docsim--record' structs."
+  "Run `docsim' on FILE-NAME and return a list of record pairs."
   (mapcar #'docsim--parse-record
           (thread-first (docsim--shell-command file-name)
                         (shell-command-to-string)
