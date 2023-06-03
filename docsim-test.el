@@ -10,6 +10,11 @@
 
 (load-file "docsim.el")
 
+(defun docsim--test-file (content)
+  (let ((temp-file (make-temp-file "docsim-test")))
+    (with-temp-file temp-file
+      (insert content)
+      temp-file)))
 
 (defvar-local plain-lines '("Here's some content! Doesn't really matter what's"
                             "in it. Though let's make sure a line starts with"
@@ -17,7 +22,7 @@
 
 (ert-deftest docsim--record-to-org-with-plain-text-test ()
   (let* ((content (mapconcat 'identity plain-lines "\n"))
-         (path (make-temp-file "docsim-test" nil nil content))
+         (path (docsim--test-file content))
          (plain-record (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
@@ -30,7 +35,7 @@
 
 (ert-deftest docsim--record-to-org-with-org-title-test ()
   (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
-         (path (make-temp-file "docsim-test" nil nil content))
+         (path (docsim--test-file content))
          (org-record (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
@@ -48,7 +53,7 @@
                                        "---")
                                      plain-lines)
                              "\n"))
-         (path (make-temp-file "docsim-test" nil nil content))
+         (path (docsim--test-file content))
          (markdown-record (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
@@ -71,16 +76,16 @@
                  '("92830384T918347" "20210426T185629" "20230531T143312"))))
 
 (ert-deftest docsim--denote-ids-in-file-test ()
-  (let ((path (make-temp-file "docsim-test" nil nil text-with-denote-links)))
+  (let ((path (docsim--test-file text-with-denote-links)))
     (should (equal (docsim--denote-ids-in-file path)
                    '("92830384T918347" "20210426T185629" "20230531T143312")))))
 
 (ert-deftest docsim--remove-denote-links-test ()
   (let* ((docsim-omit-denote-links t)
-         (file-name (make-temp-file "docsim-test" nil nil text-with-denote-links))
+         (path (docsim--test-file text-with-denote-links))
          (record-linked (cons "/tmp/foo/20210426T185629--linked-note.org" 0.0))
          (record-unlinked (cons "/tmp/foo/20201114T143209--unlinked-note.org" 0.0)))
-    (should (equal (docsim--remove-denote-links file-name (list record-linked record-unlinked))
+    (should (equal (docsim--remove-denote-links path (list record-linked record-unlinked))
                    (list record-unlinked)))))
 
 (ert-deftest docsim--limit-results-test ()
