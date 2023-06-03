@@ -8,11 +8,13 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: Install Emacs
+      run: sudo apt install emacs
 
     - name: Run tests
       run: make test
