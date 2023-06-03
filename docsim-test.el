@@ -10,55 +10,54 @@
 
 (load-file "docsim.el")
 
-(ert-deftest docsim--record-to-org-test ()
-  (let ((plain-lines '("Here's some content! Doesn't really matter what's"
-                       "in it. Though let's make sure a line starts with"
-                       "title just in case."))
-        (score "0.4242"))
 
-    ;; A plain text file without any interesting features.
-    (let* ((content (mapconcat 'identity plain-lines "\n"))
-           (path (make-temp-file "docsim-test" nil nil content))
-           (plain-record (make-docsim--record :path path :score score)))
+(defvar-local plain-lines '("Here's some content! Doesn't really matter what's"
+                            "in it. Though let's make sure a line starts with"
+                            "title just in case."))
 
-      (let ((docsim-show-scores nil))
-        (should (equal (docsim--record-to-org plain-record)
-                       (format "- [[file:%s][%s]]" path path))))
+(ert-deftest docsim--record-to-org-with-plain-text-test ()
+  (let* ((content (mapconcat 'identity plain-lines "\n"))
+         (path (make-temp-file "docsim-test" nil nil content))
+         (plain-record (make-docsim--record :path path :score "0.4242")))
 
-      (let ((docsim-show-scores t))
-        (should (equal (docsim--record-to-org plain-record)
-                       (format "- 0.4242 :: [[file:%s][%s]]" path path)))))
+    (let ((docsim-show-scores nil))
+      (should (equal (docsim--record-to-org plain-record)
+                     (format "- [[file:%s][%s]]" path path))))
 
-    ;; An Org document with a "#+title" keyword.
-    (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
-           (path (make-temp-file "docsim-test" nil nil content))
-           (org-record (make-docsim--record :path path :score score)))
+    (let ((docsim-show-scores t))
+      (should (equal (docsim--record-to-org plain-record)
+                     (format "- 0.4242 :: [[file:%s][%s]]" path path))))))
 
-      (let ((docsim-show-scores nil))
-        (should (equal (docsim--record-to-org org-record)
-                       (format "- [[file:%s][It's an Org file!]]" path))))
+(ert-deftest docsim--record-to-org-with-org-title-test ()
+  (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
+         (path (make-temp-file "docsim-test" nil nil content))
+         (org-record (make-docsim--record :path path :score "0.4242")))
 
-      (let ((docsim-show-scores t))
-        (should (equal (docsim--record-to-org org-record)
-                       (format "- 0.4242 :: [[file:%s][It's an Org file!]]" path)))))
+    (let ((docsim-show-scores nil))
+      (should (equal (docsim--record-to-org org-record)
+                     (format "- [[file:%s][It's an Org file!]]" path))))
 
-    ;; A Markdown file with some YAML front matter.
-    (let* ((content (mapconcat 'identity
-                               (append '("---"
-                                         "title: It's a Markdown file!"
-                                         "---")
-                                       plain-lines)
-                               "\n"))
-           (path (make-temp-file "docsim-test" nil nil content))
-           (markdown-record (make-docsim--record :path path :score score)))
+    (let ((docsim-show-scores t))
+      (should (equal (docsim--record-to-org org-record)
+                     (format "- 0.4242 :: [[file:%s][It's an Org file!]]" path))))))
 
-      (let ((docsim-show-scores nil))
-        (should (equal (docsim--record-to-org markdown-record)
-                       (format "- [[file:%s][It's a Markdown file!]]" path))))
+(ert-deftest docsim--record-to-org-with-markdown-yaml-title-test ()
+  (let* ((content (mapconcat 'identity
+                             (append '("---"
+                                       "title: It's a Markdown file!"
+                                       "---")
+                                     plain-lines)
+                             "\n"))
+         (path (make-temp-file "docsim-test" nil nil content))
+         (markdown-record (make-docsim--record :path path :score "0.4242")))
 
-      (let ((docsim-show-scores t))
-        (should (equal (docsim--record-to-org markdown-record)
-                       (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path)))))))
+    (let ((docsim-show-scores nil))
+      (should (equal (docsim--record-to-org markdown-record)
+                     (format "- [[file:%s][It's a Markdown file!]]" path))))
+
+    (let ((docsim-show-scores t))
+      (should (equal (docsim--record-to-org markdown-record)
+                     (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path))))))
 
 (defvar-local text-with-denote-links
     (mapconcat 'identity
