@@ -11,7 +11,7 @@
 (load-file "docsim.el")
 
 (defun docsim--test-file (content)
-  (let ((temp-file (make-temp-file "docsim-test")))
+  (let ((temp-file (make-temp-file "docsim-test-")))
     (with-temp-file temp-file
       (insert content)
       temp-file)))
@@ -23,15 +23,35 @@
 (ert-deftest docsim--record-to-org-with-plain-text-test ()
   (let* ((content (mapconcat 'identity plain-lines "\n"))
          (path (docsim--test-file content))
+         (docsim-search-paths (list (file-name-directory path)))
          (plain-record (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
       (should (equal (docsim--record-to-org plain-record)
-                     (format "- [[file:%s][%s]]" path path))))
+                     (format "- [[file:%s][%s]]"
+                             path
+                             (file-name-nondirectory path)))))
 
     (let ((docsim-show-scores t))
       (should (equal (docsim--record-to-org plain-record)
-                     (format "- 0.4242 :: [[file:%s][%s]]" path path))))))
+                     (format "- 0.4242 :: [[file:%s][%s]]"
+                             path
+                             (file-name-nondirectory path)))))
+
+    (let ((docsim-show-scores nil)
+      (should (equal (docsim--record-to-org plain-record)
+                     (format "- [[file:%s][%s]]"
+                             path
+                             (file-name-nondirectory path))))))))
+
+(ert-deftest docsim--relative-path-test ()
+   (let* ((docsim-search-paths '("~/documents/notes"
+                                 "~/documents/blog")))
+     (should (equal (docsim--relative-path "~/documents/notes/foo/bar.org")
+                    "foo/bar.org"))
+
+     (should (equal (docsim--relative-path (expand-file-name "~/documents/blog/_posts/docsim.md"))
+                    "_posts/docsim.md"))))
 
 (ert-deftest docsim--record-to-org-with-org-title-test ()
   (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))

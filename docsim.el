@@ -131,13 +131,21 @@ to nil)"
     (or (docsim--parse-title-org)
         (docsim--parse-title-markdown-yaml))))
 
+(defun docsim--relative-path (path)
+  "Return the PATH relative to the element of `docsim-search-paths' that contains it."
+  (file-relative-name (expand-file-name path)
+                      (cl-find-if (lambda (search-path)
+                                    (string-prefix-p (expand-file-name search-path)
+                                                     (expand-file-name path)))
+                                  (mapcar #'expand-file-name docsim-search-paths))))
+
 (defun docsim--record-to-org (record)
   "Format RECORD as a line of Org markup for the results buffer.
 
 If it's an Org document with a `#+title:', use that as the link
 text. If not, do your best by showing the file path."
   (let* ((org-title (docsim--record-title (car record)))
-         (link-text (or org-title (car record)))
+         (link-text (or org-title (docsim--relative-path (car record))))
          (link (format "[[file:%s][%s]]" (car record) link-text))
          (score (if docsim-show-scores
                     (format "%s :: " (cdr record))
