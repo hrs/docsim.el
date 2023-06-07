@@ -138,7 +138,7 @@ to nil)"
         (when (search-forward-regexp "^#\\+title:" nil t)
           (org-element-property :value (org-element-context (org-element-at-point))))))))
 
-(defun docsim--record-title (path)
+(defun docsim--search-result-title (path)
   "Return the `#+title' of the org file at PATH."
   (with-temp-buffer
     (insert-file-contents path)
@@ -153,16 +153,17 @@ to nil)"
                                                      (expand-file-name path)))
                                   (mapcar #'expand-file-name docsim-search-paths))))
 
-(defun docsim--record-to-org (record)
-  "Format RECORD as a line of Org markup for the results buffer.
+(defun docsim--search-result-to-org (search-result)
+  "Format SEARCH-RESULT as a line of Org markup for the results buffer.
 
 If it's an Org document with a `#+title:', use that as the link
 text. If not, do your best by showing the file path."
-  (let* ((org-title (docsim--record-title (car record)))
-         (link-text (or org-title (docsim--relative-path (car record))))
-         (link (format "[[file:%s][%s]]" (car record) link-text))
+  (let* ((path (car search-result))
+         (org-title (docsim--search-result-title path))
+         (link-text (or org-title (docsim--relative-path path)))
+         (link (format "[[file:%s][%s]]" path link-text))
          (score (if docsim-show-scores
-                    (format "%s :: " (cdr record))
+                    (format "%s :: " (cdr search-result))
                   "")))
     (format "- %s%s" score link)))
 
@@ -189,39 +190,40 @@ text. If not, do your best by showing the file path."
 
 (defun docsim--similar-notes-org (file-name)
   "Return an Org-formatted string of results for running `docsim' on FILE-NAME."
-  (thread-last (docsim--similar-notes file-name)
-               (mapcar #'docsim--record-to-org)
-               ((lambda (xs) (mapconcat 'identity xs "\n")))
-               (concat "Similar notes:\n\n")))
+  (concat "Similar notes:\n\n"
+          (mapconcat #'identity
+                     (mapcar #'docsim--search-result-to-org
+                             (docsim--similar-notes file-name))
+                     "\n")))
 
-(defun docsim--remove-denote-links (file-name records)
-  "Return RECORDS excluding notes already linked from FILE-NAME."
+(defun docsim--remove-denote-links (file-name search-results)
+  "Return SEARCH-RESULTS excluding notes already linked from FILE-NAME."
   (if docsim-omit-denote-links
       (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
-        (cl-remove-if (lambda (record)
+        (cl-remove-if (lambda (search-result)
                         (cl-find-if (lambda (denote-id)
-                                      (string-match-p denote-id (car record)))
+                                      (string-match-p denote-id (car search-result)))
                                     linked-denote-ids))
-                      records))
-    records))
+                      search-results))
+    search-results))
 
-(defun docsim--limit-results (records)
-  "Return RECORDS with no more than `docsim-limit' results.
+(defun docsim--limit-results (search-results)
+  "Return SEARCH-RESULTS with no more than `docsim-limit' results.
 
 Return them all if `docsim-limit' is nil."
   (if (and docsim-limit
-           (> (length records) docsim-limit))
-          (cl-subseq records 0 docsim-limit)
-    records))
+           (> (length search-results) docsim-limit))
+          (cl-subseq search-results 0 docsim-limit)
+    search-results))
 
 (defun docsim--similar-notes (file-name)
-  "Return a list of records resulting from running `docsim' on FILE-NAME.
+  "Return a list of search-results resulting from running `docsim' on FILE-NAME.
 
 Include no more that `docsim-limit' results, and omit any results
 that already seem to be linked from FILE-NAME."
-  (thread-last (docsim--similarity-results file-name)
-               (docsim--remove-denote-links file-name)
-               (docsim--limit-results)))
+  (docsim--limit-results
+   (docsim--remove-denote-links file-name
+                                (docsim--similarity-results file-name))))
 
 (defun docsim--visit-link ()
   "Visit the next availabile link (which is usually on the current line)."
@@ -242,8 +244,8 @@ that already seem to be linked from FILE-NAME."
     (kill-buffer (current-buffer))
     (select-window (get-mru-window nil t t side-window))))
 
-(defun docsim--parse-record (line)
-  "Parse a LINE of `docsim' results into a record pair."
+(defun docsim--parse-search-result (line)
+  "Parse a LINE of `docsim' results into a search-result pair."
   (let* ((score (car (split-string line "\t")))
          (path (substring line (1+ (length score)))))
     (cons path score)))
@@ -263,23 +265,22 @@ that already seem to be linked from FILE-NAME."
 
 (defun docsim--shell-command (file-name)
   "Return a string containing the `docsim' command to run on FILE-NAME."
-  (mapconcat 'identity
+  (mapconcat #'identity
              `(,docsim-executable
                "--best-first"
                "--omit-query"
                "--show-scores"
                ,@(docsim--stemming-stoplist-flags)
                "--query" ,(docsim--quote-path file-name)
-               ,@(mapcar 'docsim--quote-path docsim-search-paths))
+               ,@(mapcar #'docsim--quote-path docsim-search-paths))
              " "))
 
 (defun docsim--similarity-results (file-name)
-  "Run `docsim' on FILE-NAME and return a list of record pairs."
-  (mapcar #'docsim--parse-record
-          (thread-first (docsim--shell-command file-name)
-                        (shell-command-to-string)
-                        (substring 0 -1)
-                        (split-string "\n"))))
+  "Run `docsim' on FILE-NAME and return a list of search-result pairs."
+  (mapcar #'docsim--parse-search-result
+          (split-string (substring (shell-command-to-string (docsim--shell-command file-name))
+                                   0 -1)
+                        "\n")))
 
 (defun docsim-show-similar-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.
