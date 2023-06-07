@@ -1,8 +1,9 @@
-;;; docsim.el --- find notes that are textually similar to this one.
+;;; docsim.el --- Find notes that are textually similar to this one
 
 ;; Author: Harry R. Schwartz <hello@harryrschwartz.com>
 ;; Maintainer: Harry R. Schwartz <hello@harryrschwartz.com>
-;; Package-Requires: ((cl-lib "0.5") (org "8.0"))
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "24.4") (org "8.0"))
 ;; Homepage: https://github.com/hrs/docsim.el
 
 ;; This file is NOT part of GNU Emacs.
