@@ -2,7 +2,7 @@
 #+options: toc:nil num:nil
 
 [[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPL%20v3-blue.svg]]
-[[https://github.com/hrs/docsim.el/actions/workflows/test.yml][https://github.com/hrs/docsim.el/actions/workflows/test.yml/badge.svg]]
+[[https://github.com/hrs/docsim.el/actions/workflows/test.yml][https://github.com/hrs/docsim.el/actions/workflows/test.yml/badge.svg?branch=main]]
 
 An Emacs tool for finding similar notes. Open a note, hit a key, and see a
 ranked list of notes that look most similar to that one (according to a genuine
