@@ -132,7 +132,7 @@ to nil)"
         (docsim--parse-title-markdown-yaml))))
 
 (defun docsim--relative-path (path)
-  "Return the PATH relative to the element of `docsim-search-paths' that contains it."
+  "Return the PATH relative to the element of `docsim-search-paths' in which it's contained."
   (file-relative-name (expand-file-name path)
                       (cl-find-if (lambda (search-path)
                                     (string-prefix-p (expand-file-name search-path)
@@ -297,7 +297,7 @@ aren't yet."
           (goto-char (point-min)))
 
         (pop-to-buffer sidebar-buffer))
-    (error "can't compare this buffer (have you saved it?)")))
+    (error "Can't compare this buffer (have you saved it?)")))
 
 (defvar docsim-mode-map
   (let ((map (make-sparse-keymap)))
@@ -311,6 +311,6 @@ aren't yet."
   (setq-local buffer-read-only t)
   (use-local-map docsim-mode-map))
 
-(provide 'docsim-mode)
+(provide 'docsim)
 
-;;; docsim-mode.el ends here
+;;; docsim.el ends here
