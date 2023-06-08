@@ -5,8 +5,8 @@
 [[https://github.com/hrs/docsim.el/actions/workflows/test.yml][https://github.com/hrs/docsim.el/actions/workflows/test.yml/badge.svg?branch=main]]
 
 An Emacs tool for finding similar notes. Open a note, hit a key, and see a
-ranked list of notes that look most similar to that one (according to a genuine
-information retrieval algorithm, not just =grep= or something).
+ranked list of notes that look most similar to that one (according to a [[https://github.com/hrs/docsim#how-it-works][genuine
+information retrieval algorithm]], not just =grep=).
 
 * What's this for?
 
@@ -36,14 +36,14 @@ See also: [[https://github.com/hrs/docsim#how-it-works][more technical details]]
 
 * How do I set this up?
 
-=docsim.el= shells out to the [[https://github.com/hrs/docsim][=docsim=]] tool to do most of the work, so you'll
-need to install that on your =$PATH= first. It's a small Go utility with
+=docsim.el= shells out to the [[https://github.com/hrs/docsim][docsim command-line tool]] to do most of the work, so
+you'll need to install that on your =$PATH= first. It's a small Go utility with
 [[https://github.com/hrs/docsim/releases/latest][precompiled binaries]] available for most popular platforms, or you can [[https://github.com/hrs/docsim#installation][install it
 from source]].
 
 Once that's done, just install =docsim.el= like any other package. We're not in
-[[https://melpa.org/#/][MELPA]] (yet!), but there are plenty of alternatives like [[https://github.com/radian-software/straight.el][=straight=]] or [[https://github.com/quelpa/quelpa][=quelpa=]].
-Or just clone the repo locally.
+[[https://melpa.org/#/][MELPA]] (yet!), but there are plenty of alternatives like [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa][quelpa]]. Or
+just clone the repo locally.
 
 With ~use-package~:
 
@@ -75,10 +75,21 @@ Open up a note and =M-x docsim-show-similar-notes= (or whatever keybinding
 you've chosen, like =C-c n d= in the example above). You should be presented
 with a buffer containing a ranked list of links to similar notes!
 
+* Using =docsim= with =denote=
+
+The maintainer of this package :wave: happens to use =denote= for managing their
+notes, so =docsim.el= includes an option to exclude notes that you've already
+linked from your search results. Configure that like so:
+
+#+begin_src emacs-lisp
+  (setq docsim-search-paths (list denote-directory))
+  (setq docsim-omit-denote-links t)
+#+end_src
+
 * But I don't write in English!
 
-Because its author is a monoglot---and because it was easy to find a good Go
-stemming library for English---=docsim= defaults to using English stoplists and
+Because its author is a monoglot (and because it was easy to find a good Go
+stemming library for English) =docsim= defaults to using English stoplists and
 stemming to improve accuracy. If you mostly write in a language /other/ than
 English you might need to tweak things a bit to get comparable results.
 
