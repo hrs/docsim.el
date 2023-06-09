@@ -292,6 +292,19 @@ that already seem to be linked from FILE-NAME."
                ,@(mapcar #'docsim--quote-path docsim-search-paths))
              " "))
 
+(defun docsim--search-shell-command (search-query)
+  "Return a string containing the `docsim' command to run on SEARCH-QUERY."
+  (mapconcat #'identity
+             `("echo"
+               ,(docsim--quote search-query)
+               "|"
+               ,docsim-executable
+               "--best-first"
+               "--show-scores"
+               ,@(docsim--stemming-stoplist-flags)
+               ,@(mapcar #'docsim--quote-path docsim-search-paths))
+             " "))
+
 (defun docsim--similarity-results (shell-command)
   "Run SHELL-COMMAND and return a list of search-result pairs."
   (let ((result (shell-command-to-string shell-command)))

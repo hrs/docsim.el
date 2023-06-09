@@ -232,6 +232,30 @@
       (should (equal (docsim--compare-shell-command "/usr/local/query")
                      "docsim --best-first --omit-query --show-scores --stoplist \"/usr/local/stoplist\" --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))))
 
+(ert-deftest docsim--search-shell-command-test ()
+  (let ((docsim-executable "docsim")
+        (docsim-search-paths '("/usr/local/foo" "/usr/local/bar")))
+
+    (let ((docsim-assume-english nil)
+          (docsim-stoplist-path nil))
+      (should (equal (docsim--search-shell-command "foo bar baz")
+                     "echo \"foo bar baz\" | docsim --best-first --show-scores --no-stemming --no-stoplist \"/usr/local/foo\" \"/usr/local/bar\"")))
+
+    (let ((docsim-assume-english nil)
+          (docsim-stoplist-path "/usr/local/stoplist"))
+      (should (equal (docsim--search-shell-command "foo bar baz")
+                     "echo \"foo bar baz\" | docsim --best-first --show-scores --no-stemming --stoplist \"/usr/local/stoplist\" \"/usr/local/foo\" \"/usr/local/bar\"")))
+
+    (let ((docsim-assume-english t)
+          (docsim-stoplist-path nil))
+      (should (equal (docsim--search-shell-command "foo bar baz")
+                     "echo \"foo bar baz\" | docsim --best-first --show-scores \"/usr/local/foo\" \"/usr/local/bar\"")))
+
+    (let ((docsim-assume-english t)
+          (docsim-stoplist-path "/usr/local/stoplist"))
+      (should (equal (docsim--search-shell-command "foo bar baz")
+                     "echo \"foo bar baz\" | docsim --best-first --show-scores --stoplist \"/usr/local/stoplist\" \"/usr/local/foo\" \"/usr/local/bar\"")))))
+
 (provide 'docsim-test)
 
 ;;; docsim-test.el ends here
