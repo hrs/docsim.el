@@ -313,6 +313,18 @@ that already seem to be linked from FILE-NAME."
       (mapcar #'docsim--parse-search-result
               (split-string (substring result 0 -1) "\n")))))
 
+(defun docsim--show-results-buffer (shell-command buffer-name)
+  "Pop up buffer BUFFER-NAME listing notes returned by SHELL-COMMAND."
+  (let ((sidebar-buffer (get-buffer-create buffer-name)))
+    (with-current-buffer sidebar-buffer
+      (setq-local buffer-read-only nil)
+      (erase-buffer)
+      (insert (docsim--similar-notes-org shell-command))
+      (docsim-mode)
+      (goto-char (point-min)))
+
+    (pop-to-buffer sidebar-buffer)))
+
 (defun docsim-show-similar-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.
 
@@ -333,16 +345,8 @@ helpful for identifying files that \"should\" be linked but
 aren't yet."
   (interactive (list (buffer-file-name)))
   (if file-name
-      (let ((sidebar-buffer (get-buffer-create (format "*similar notes: %s*"
-                                                       (file-name-nondirectory file-name)))))
-        (with-current-buffer sidebar-buffer
-          (setq-local buffer-read-only nil)
-          (erase-buffer)
-          (insert (docsim--similar-notes-org (docsim--compare-shell-command file-name)))
-          (docsim-mode)
-          (goto-char (point-min)))
-
-        (pop-to-buffer sidebar-buffer))
+      (docsim--show-results-buffer (docsim--compare-shell-command file-name)
+                                   (format "*similar notes: %s*" (file-name-nondirectory file-name)))
     (error "Can't compare this buffer (have you saved it?)")))
 
 (defvar docsim-mode-map
