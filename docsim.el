@@ -349,6 +349,26 @@ aren't yet."
                                    (format "*similar notes: %s*" (file-name-nondirectory file-name)))
     (error "Can't compare this buffer (have you saved it?)")))
 
+(defun docsim-search-notes (query)
+  "Search for notes similar to QUERY.
+
+This calls out to the external `docsim' tool to perform textual
+analysis on all the notes in `docsim-search-paths', score them by
+similarity to QUERY, and return the sorted results, best first.
+
+Include the similarity scores (between 0.0 and 1.0) of each note
+if `docsim-show-scores' is non-nil.
+
+Show at most `docsim-limit' results (or all of them, if
+`docsim-limit' is nil)."
+  (interactive (list (if (use-region-p)
+                         (buffer-substring (region-beginning) (region-end))
+                       (read-string "Query: " nil 'docsim-query))))
+  (if (string-empty-p query)
+      (error "Can't search with an empty query")
+      (docsim--show-results-buffer (docsim--search-shell-command query)
+                                   (format "*search notes: %s*" query))))
+
 (defvar docsim-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "RET") 'docsim--visit-link)
