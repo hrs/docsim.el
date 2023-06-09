@@ -201,12 +201,12 @@ text. If not, do your best by showing the file path."
                                   (insert-file-contents file-name)
                                   (buffer-string))))
 
-(defun docsim--similar-notes-org (file-name)
-  "Return an Org-formatted string of results for running `docsim' on FILE-NAME."
+(defun docsim--similar-notes-org (shell-command)
+  "Return an Org-formatted string of results for running SHELL-COMMAND."
   (concat "Similar notes:\n\n"
           (mapconcat #'identity
                      (mapcar #'docsim--search-result-to-org
-                             (docsim--similar-notes file-name))
+                             (docsim--similar-notes shell-command))
                      "\n")))
 
 (defun docsim--remove-denote-links (file-name search-results)
@@ -229,14 +229,14 @@ Return them all if `docsim-limit' is nil."
           (cl-subseq search-results 0 docsim-limit)
     search-results))
 
-(defun docsim--similar-notes (file-name)
-  "Return a list of search-results resulting from running `docsim' on FILE-NAME.
+(defun docsim--similar-notes (shell-command)
+  "Return a list of search-results resulting from running SHELL_COMMAND.
 
 Include no more that `docsim-limit' results, and omit any results
 that already seem to be linked from FILE-NAME."
   (docsim--limit-results
    (docsim--remove-denote-links file-name
-                                (docsim--similarity-results file-name))))
+                                (docsim--similarity-results shell-command))))
 
 (defun docsim--visit-link ()
   "Visit the next availabile link (which is usually on the current line)."
@@ -263,9 +263,13 @@ that already seem to be linked from FILE-NAME."
          (path (substring line (1+ (length score)))))
     (cons path score)))
 
+(defun docsim--quote (s)
+  "Wrap S in quotes for interpolation into a shell command."
+  (format "\"%s\"" s))
+
 (defun docsim--quote-path (path)
   "Wrap PATH in quotes for interpolation into a shell command."
-  (format "\"%s\"" (file-truename path)))
+  (docsim--quote (file-truename path)))
 
 (defun docsim--stemming-stoplist-flags ()
   "Return a list of stemming- and stoplist-related flags for the shell command."
@@ -276,7 +280,7 @@ that already seem to be linked from FILE-NAME."
         '("--no-stemming" "--no-stoplist")
       `("--no-stemming" "--stoplist" ,(docsim--quote-path docsim-stoplist-path)))))
 
-(defun docsim--shell-command (file-name)
+(defun docsim--compare-shell-command (file-name)
   "Return a string containing the `docsim' command to run on FILE-NAME."
   (mapconcat #'identity
              `(,docsim-executable
@@ -288,12 +292,13 @@ that already seem to be linked from FILE-NAME."
                ,@(mapcar #'docsim--quote-path docsim-search-paths))
              " "))
 
-(defun docsim--similarity-results (file-name)
-  "Run `docsim' on FILE-NAME and return a list of search-result pairs."
-  (mapcar #'docsim--parse-search-result
-          (split-string (substring (shell-command-to-string (docsim--shell-command file-name))
-                                   0 -1)
-                        "\n")))
+(defun docsim--similarity-results (shell-command)
+  "Run SHELL-COMMAND and return a list of search-result pairs."
+  (let ((result (shell-command-to-string shell-command)))
+    (if (string-empty-p result)
+        (error "No searchable notes found!")
+      (mapcar #'docsim--parse-search-result
+              (split-string (substring result 0 -1) "\n")))))
 
 (defun docsim-show-similar-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.
@@ -320,7 +325,7 @@ aren't yet."
         (with-current-buffer sidebar-buffer
           (setq-local buffer-read-only nil)
           (erase-buffer)
-          (insert (docsim--similar-notes-org file-name))
+          (insert (docsim--similar-notes-org (docsim--compare-shell-command file-name)))
           (docsim-mode)
           (goto-char (point-min)))
 

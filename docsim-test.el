@@ -208,28 +208,28 @@
   (should (equal (docsim--quote-path "/usr/local/Hello World")
                  "\"/usr/local/Hello World\"")))
 
-(ert-deftest docsim--shell-command-test ()
+(ert-deftest docsim--compare-shell-command-test ()
   (let ((docsim-executable "docsim")
         (docsim-search-paths '("/usr/local/foo" "/usr/local/bar")))
 
     (let ((docsim-assume-english nil)
           (docsim-stoplist-path nil))
-      (should (equal (docsim--shell-command "/usr/local/query")
+      (should (equal (docsim--compare-shell-command "/usr/local/query")
                      "docsim --best-first --omit-query --show-scores --no-stemming --no-stoplist --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
 
     (let ((docsim-assume-english nil)
           (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--shell-command "/usr/local/query")
+      (should (equal (docsim--compare-shell-command "/usr/local/query")
                      "docsim --best-first --omit-query --show-scores --no-stemming --stoplist \"/usr/local/stoplist\" --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
 
     (let ((docsim-assume-english t)
           (docsim-stoplist-path nil))
-      (should (equal (docsim--shell-command "/usr/local/query")
+      (should (equal (docsim--compare-shell-command "/usr/local/query")
                      "docsim --best-first --omit-query --show-scores --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
 
     (let ((docsim-assume-english t)
           (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--shell-command "/usr/local/query")
+      (should (equal (docsim--compare-shell-command "/usr/local/query")
                      "docsim --best-first --omit-query --show-scores --stoplist \"/usr/local/stoplist\" --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))))
 
 (provide 'docsim-test)
