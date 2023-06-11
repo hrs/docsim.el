@@ -201,24 +201,22 @@ text. If not, do your best by showing the file path."
                                   (insert-file-contents file-name)
                                   (buffer-string))))
 
-(defun docsim--similar-notes-org (shell-command)
-  "Return an Org-formatted string of results for running SHELL-COMMAND."
+(defun docsim--similar-notes-org (shell-command &optional file-name)
+  "Return an Org-formatted string of results for running SHELL-COMMAND on FILE-NAME."
   (concat "Similar notes:\n\n"
           (mapconcat #'identity
                      (mapcar #'docsim--search-result-to-org
-                             (docsim--similar-notes shell-command))
+                             (docsim--similar-notes shell-command file-name))
                      "\n")))
 
 (defun docsim--remove-denote-links (file-name search-results)
   "Return SEARCH-RESULTS excluding notes already linked from FILE-NAME."
-  (if docsim-omit-denote-links
-      (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
-        (cl-remove-if (lambda (search-result)
-                        (cl-find-if (lambda (denote-id)
-                                      (string-match-p denote-id (car search-result)))
-                                    linked-denote-ids))
-                      search-results))
-    search-results))
+  (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
+    (cl-remove-if (lambda (search-result)
+                    (cl-find-if (lambda (denote-id)
+                                  (string-match-p denote-id (car search-result)))
+                                linked-denote-ids))
+                  search-results)))
 
 (defun docsim--limit-results (search-results)
   "Return SEARCH-RESULTS with no more than `docsim-limit' results.
@@ -229,14 +227,17 @@ Return them all if `docsim-limit' is nil."
           (cl-subseq search-results 0 docsim-limit)
     search-results))
 
-(defun docsim--similar-notes (shell-command)
-  "Return a list of search-results resulting from running SHELL_COMMAND.
+(defun docsim--similar-notes (shell-command &optional file-name)
+  "Return list of search-results from running SHELL-COMMAND on FILE-NAME.
 
 Include no more that `docsim-limit' results, and omit any results
-that already seem to be linked from FILE-NAME."
-  (docsim--limit-results
-   (docsim--remove-denote-links file-name
-                                (docsim--similarity-results shell-command))))
+that already seem to be linked from FILE-NAME, if it's provided
+and if `docsim-denote-omit-links' is t."
+  (let ((search-results (docsim--similarity-results shell-command)))
+    (docsim--limit-results
+     (if (and docsim-omit-denote-links file-name)
+         (docsim--remove-denote-links file-name search-results)
+       search-results))))
 
 (defun docsim--visit-link ()
   "Visit the next availabile link (which is usually on the current line)."
@@ -313,19 +314,19 @@ that already seem to be linked from FILE-NAME."
       (mapcar #'docsim--parse-search-result
               (split-string (substring result 0 -1) "\n")))))
 
-(defun docsim--show-results-buffer (shell-command buffer-name)
-  "Pop up buffer BUFFER-NAME listing notes returned by SHELL-COMMAND."
+(defun docsim--show-results-buffer (shell-command buffer-name &optional file-name)
+  "Pop up buffer BUFFER-NAME listing notes returned by SHELL-COMMAND on FILE-NAME."
   (let ((sidebar-buffer (get-buffer-create buffer-name)))
     (with-current-buffer sidebar-buffer
       (setq-local buffer-read-only nil)
       (erase-buffer)
-      (insert (docsim--similar-notes-org shell-command))
+      (insert (docsim--similar-notes-org shell-command file-name))
       (docsim-mode)
       (goto-char (point-min)))
 
     (pop-to-buffer sidebar-buffer)))
 
-(defun docsim-show-similar-notes (file-name)
+(defun docsim-compare-notes (file-name)
   "Display a list of notes that look similar to FILE-NAME.
 
 This calls out to the external `docsim' tool to perform textual
@@ -346,7 +347,8 @@ aren't yet."
   (interactive (list (buffer-file-name)))
   (if file-name
       (docsim--show-results-buffer (docsim--compare-shell-command file-name)
-                                   (format "*similar notes: %s*" (file-name-nondirectory file-name)))
+                                   (format "*similar notes: %s*" (file-name-nondirectory file-name))
+                                   file-name)
     (error "Can't compare this buffer (have you saved it?)")))
 
 (defun docsim-search-notes (query)
