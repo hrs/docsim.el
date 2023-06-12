@@ -4,39 +4,32 @@
 [[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPL%20v3-blue.svg]]
 [[https://github.com/hrs/docsim.el/actions/workflows/test.yml][https://github.com/hrs/docsim.el/actions/workflows/test.yml/badge.svg?branch=main]]
 
-An Emacs tool for finding similar notes. Open a note, hit a key, and see a
-ranked list of notes that look most similar to that one (according to a [[https://github.com/hrs/docsim#how-it-works][genuine
-information retrieval algorithm]], not just =grep=).
+A fast, local search engine for your text files. Query your notes and get a
+ranked list of the best matches.
 
-* What's this for?
+* How is this different from =grep= (or =ripgrep=, or =ag=, or...)?
 
-If you're like me, you've got a directory full of hundreds of text files
-about... well, all kinds of stuff. Work, education, projects, journal entries,
-drafts of blog posts, whatever.
+Those tools are all great, and I use them all the time! But they search for
+literal text matches, usually line-by-line. That's often what I want, but
+sometimes I want to know, "what notes are /most similar/ to this query, or to this
+other note?"
 
-I often notice, while writing or reviewing one of these notes, that it'd be
-useful to know which /other/ notes talk about similar things. And while of
-course I can =grep= through those notes, =grep= is a blunt instrument; I might
-pick the wrong search term and miss obvious connections. It'd be nice to be able
-to look at a note, hit a key, and see the other notes that are most similar to
-this one (where "similar" means "uses lots of the same words").
+If I search for "chunky bacon," I still want to see documents that talk about
+"chunks of bacon." And, below those, I probably want to see notes that discuss
+regular "bacon," even if it's not chunky.
 
-That's what =docsim.el= is for! It provides a function,
-~docsim-show-similar-notes~, which displays a list of links to notes that look
-related to the one you're viewing, ranked by similarity.
+=docsim= uses a few different [[https://github.com/hrs/docsim#how-it-works][information retrieval algorithms]] to provide a ranked
+list of text documents. It takes term frequency into account, weighs rare words
+more heavily, uses stoplists to ignore common terms, and (optionally) stems
+English words (so "spinning" can match "spinner").
 
-At its best this can help you find connections between concepts that you hadn't
-noticed before, which, one could argue, is a big part of what thinking /is/.
+It's also slower and more memory-intensive than those other tools, of course,
+since it does more work. But performance /is/ a goal, and on a mid-range machine
+it'll process a few thousand documents without notable lag.
 
-Or, at least, it's a big part of what using a [[https://en.wikipedia.org/wiki/Zettelkasten][Zettelkasten]] is: if you use a tool
-like [[https://protesilaos.com/emacs/denote][Denote]] or [[https://www.orgroam.com/][Org-Roam]] you're probably spending some time finding links between
-notes. This can help make that process easier.
+* Installation
 
-See also: [[https://github.com/hrs/docsim#how-it-works][more technical details]]!
-
-* How do I set this up?
-
-=docsim.el= shells out to the [[https://github.com/hrs/docsim][docsim command-line tool]] to do most of the work, so
+=docsim.el= relies on the [[https://github.com/hrs/docsim][docsim command-line tool]] to do most of the work, so
 you'll need to install that on your =$PATH= first. It's a small Go utility with
 [[https://github.com/hrs/docsim/releases/latest][precompiled binaries]] available for most popular platforms, or you can [[https://github.com/hrs/docsim#installation][install it
 from source]].
@@ -52,7 +45,8 @@ With ~use-package~:
     ;; If you've cloned this repo locally:
     :load-path "~/path/to/this/cloned/repo"
 
-    :bind ("C-c n d" . docsim-show-similar-notes)
+    :bind (("C-c n s" . docsim-search)
+           ("C-c n d" . docsim-search-buffer))
 
     :custom
     (docsim-search-paths '("~/directory/where/you/keep/your/notes")))
@@ -63,23 +57,27 @@ If you're installing manually, add =docsim.el= to your load path and:
 #+begin_src emacs-lisp
   (require 'docsim)
   (setq docsim-search-paths '("~/directory/where/you/keep/your/notes"))
-  (global-set-key (kbd "C-c n d") 'docsim-show-similar-notes)
+  (global-set-key (kbd "C-c n s") 'docsim-search)
+  (global-set-key (kbd "C-c n d") 'docsim-search-buffer)
 #+end_src
 
-That keybinding of =C-c n d= is just made up, of course. Use whatever you'd
-like!
+Those keybindings are just made up, of course. Use whatever you'd like!
 
-* How do I use this?
+* Usage
 
-Open up a note and =M-x docsim-show-similar-notes= (or whatever keybinding
-you've chosen, like =C-c n d= in the example above). You should be presented
-with a buffer containing a ranked list of links to similar notes!
+Once you've got =docsim.el= installed and configured, you'll probably just use:
 
-* Using =docsim= with =denote=
+- ~docsim-search~ :: Search your notes for a query.
+- ~docsim-search-buffer~ :: Parse the current buffer and list similar notes.
 
-The maintainer of this package :wave: happens to use =denote= for managing their
-notes, so =docsim.el= includes an option to exclude notes that you've already
-linked from your search results. Configure that like so:
+If you link your notes together into a [[https://en.wikipedia.org/wiki/Zettelkasten][zettelkasten]] (maybe you use =org-roam= or
+=denote=?), ~docsim-search-buffer~ can help you surface similar notes that "should"
+be linked together. That can help you find connections you'd otherwise miss and
+makes it easier to add notes into your personal knowledge graph.
+
+In particular, the maintainer of this package :wave: happens to use =denote= to
+manage their notes, so =docsim.el= includes an option to exclude notes that you've
+already linked from your search results. Configure that like so:
 
 #+begin_src emacs-lisp
   (setq docsim-search-paths (list denote-directory))
@@ -88,9 +86,9 @@ linked from your search results. Configure that like so:
 
 * But I don't write in English!
 
-Because its author is a monoglot (and because it was easy to find a good Go
-stemming library for English) =docsim= defaults to using English stoplists and
-stemming to improve accuracy. If you mostly write in a language /other/ than
+Because its author is a monoglot (and because it was easy for them to find a
+good Go stemming library for English) =docsim= defaults to using English stoplists
+and stemming to improve accuracy. If you mostly write in a language /other/ than
 English you might need to tweak things a bit to get comparable results.
 
 First, disable those English-specific features:
@@ -102,8 +100,8 @@ First, disable those English-specific features:
 Next, optionally, provide a custom stoplist of common words in your language.
 This is a text file of words that don't carry much semantic meaning (like "as"
 or "because" in English) separated by newlines. Words like this would probably
-already be /mostly/ ignored by =docsim=, because words are weighted by how
-rarely they show up, but if you add a stoplist they'll be skipped completely.
+already be /mostly/ ignored by =docsim=, because words are weighted by how rarely
+they show up, but if you add a stoplist they'll be skipped completely.
 
 #+begin_src emacs-lisp
   (setq docsim-stoplist-file "~/path/to/my/custom/stoplist.txt")
