@@ -54,10 +54,9 @@
 
 ;;; Code:
 
-(eval-when-compile
-  (require 'cl-lib)
-  (require 'org)
-  (require 'org-element))
+(require 'cl-lib)
+(require 'org)
+(require 'org-element)
 
 (defgroup docsim nil
   "Find similar documents."
@@ -117,18 +116,27 @@ to nil)"
   :group 'docsim)
 
 (defun docsim--parse-title-markdown-yaml ()
-  "Treat the current buffer as if it might have YAML front matter and attempt to parse the `title:'."
+  "Attempt to parse `title' from YAML front matter in the current buffer.
+
+This treats the current buffer as if it contains Markdown with
+YAML front matter, as used, for example, in Jekyll blog posts. It
+attempts to parse out and return the value associated with the
+`title' key. If that's not found, return nil."
   (save-excursion
     (goto-char (point-min))
     (when (looking-at "^---$")
-        (forward-line 1)
-        (let ((yaml (buffer-substring-no-properties (point)
-                                                    (re-search-forward "^---$"))))
-          (when (string-match "^title: \\(.*\\)$" yaml)
-            (match-string 1 yaml))))))
+      (forward-line 1)
+      (let ((yaml (buffer-substring-no-properties (point)
+                                                  (re-search-forward "^---$"))))
+        (when (string-match "^title: \\(.*\\)$" yaml)
+          (match-string 1 yaml))))))
 
 (defun docsim--parse-title-org ()
-  "Treat the current buffer as if it might contain Org text and attempt to parse the `#+TITLE:'."
+  "Attempt to parse `#+TITLE:' from Org in the current buffer.
+
+This treats the current buffer as if it contains Org text. It
+attempts to parse out and return value associated with the
+`#+TITLE:' keyword. If that's not found, return nil."
   (if (fboundp 'org-collect-keywords)
       (cadar (org-collect-keywords '("title")))
     (save-excursion
@@ -138,14 +146,20 @@ to nil)"
           (org-element-property :value (org-element-context (org-element-at-point))))))))
 
 (defun docsim--search-result-title (path)
-  "Return the `#+title' of the org file at PATH."
+  "Return a title determined by parsing the file at PATH."
   (with-temp-buffer
     (insert-file-contents path)
     (or (docsim--parse-title-org)
         (docsim--parse-title-markdown-yaml))))
 
 (defun docsim--relative-path (path)
-  "Return the PATH relative to the element of `docsim-search-paths' in which it's contained."
+  "Return the relative path of PATH in one of `docsim-search-paths'.
+
+PATH is an absolute file path referencing a file located in one
+of the `docsim-search-paths'. This search result must be nested
+somewhere under one of the `docsim-search-paths'. This determines
+which of those directories contains PATH and returns the path
+relative to that directory."
   (file-relative-name (expand-file-name path)
                       (cl-find-if (lambda (search-path)
                                     (string-prefix-p (expand-file-name search-path)
@@ -254,7 +268,7 @@ that already seem to be linked from FILE-NAME."
   (format "\"%s\"" (file-truename path)))
 
 (defun docsim--stemming-stoplist-flags ()
-  "Return a list of stemming- and stoplist-related flags to be passed to the shell command."
+  "Return a list of stemming- and stoplist-related flags for the shell command."
   (if docsim-assume-english
       (when docsim-stoplist-path
         `("--stoplist" ,(docsim--quote-path docsim-stoplist-path)))
