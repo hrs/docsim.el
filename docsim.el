@@ -115,6 +115,22 @@ to nil)"
   :type 'string
   :group 'docsim)
 
+(cl-deftype docsim-query ()
+  '(or string buffer))
+
+(cl-deftype docsim-score ()
+  '(and cons
+        (satisfies (lambda (match)
+                     (and (cl-typep (car match) 'string)
+                          (cl-typep (cdr match) 'string))))))
+
+(cl-deftype docsim-score-list ()
+  '(and list
+        (satisfies (lambda (scores)
+                     (cl-every (lambda (score)
+                                 (cl-typep score 'docsim-score))
+                               scores)))))
+
 (defun docsim--parse-title-markdown-yaml ()
   "Attempt to parse `title' from YAML front matter in the current buffer.
 
@@ -147,6 +163,7 @@ attempts to parse out and return value associated with the
 
 (defun docsim--search-result-title (path)
   "Return a title determined by parsing the file at PATH."
+  (cl-check-type path string)
   (with-temp-buffer
     (insert-file-contents path)
     (or (docsim--parse-title-org)
@@ -160,6 +177,7 @@ of the `docsim-search-paths'. This search result must be nested
 somewhere under one of the `docsim-search-paths'. This determines
 which of those directories contains PATH and returns the path
 relative to that directory."
+  (cl-check-type path string)
   (file-relative-name (expand-file-name path)
                       (cl-find-if (lambda (search-path)
                                     (string-prefix-p (expand-file-name search-path)
@@ -182,6 +200,7 @@ text. If not, do your best by showing the file path."
 
 (defun docsim--denote-ids-in-string (s)
   "Given a string S, return every string that plausible matches a Denote ID."
+  (cl-check-type s string)
   (let ((denote-id-regexp (rx "[denote:"
                               (group (= 8 digit)
                                      "T"
@@ -196,11 +215,13 @@ text. If not, do your best by showing the file path."
 
 (defun docsim--denote-ids-in-buffer (buffer)
   "Given a buffer BUFFER, return every string that plausible matches a Denote ID."
+  (cl-check-type buffer buffer)
   (docsim--denote-ids-in-string (with-current-buffer buffer
                                   (buffer-string))))
 
 (defun docsim--similar-notes-org (search-results)
   "Return Org-formatted string of SEARCH-RESULTS."
+  (cl-check-type search-results docsim-score-list)
   (concat "Similar notes:\n\n"
           (mapconcat #'identity
                      (mapcar #'docsim--search-result-to-org search-results)
@@ -208,6 +229,8 @@ text. If not, do your best by showing the file path."
 
 (defun docsim--remove-denote-links (buffer search-results)
   "Return SEARCH-RESULTS excluding notes already linked from BUFFER."
+  (cl-check-type buffer buffer)
+  (cl-check-type search-results docsim-score-list)
   (let ((linked-denote-ids (docsim--denote-ids-in-buffer buffer)))
     (cl-remove-if (lambda (search-result)
                     (cl-find-if (lambda (denote-id)
@@ -219,6 +242,7 @@ text. If not, do your best by showing the file path."
   "Return SEARCH-RESULTS with no more than `docsim-limit' results.
 
 Return them all if `docsim-limit' is nil."
+  (cl-check-type search-results docsim-score-list)
   (if (and docsim-limit
            (> (length search-results) docsim-limit))
           (cl-subseq search-results 0 docsim-limit)
@@ -232,6 +256,7 @@ QUERY may be either a string or a buffer.
 Include no more that `docsim-limit' results, and omit any results
 that already seem to be linked from QUERY, if (1) it's a buffer
 backed by a file and (2) `docsim-denote-omit-links' is t."
+  (cl-check-type query docsim-query)
   (let ((search-results (docsim--similarity-results query)))
     (docsim--limit-results
      (if (and (bufferp query) docsim-omit-denote-links)
@@ -259,12 +284,14 @@ backed by a file and (2) `docsim-denote-omit-links' is t."
 
 (defun docsim--parse-search-result (line)
   "Parse a LINE of `docsim' results into a search-result pair."
+  (cl-check-type line string)
   (let* ((score (car (split-string line "\t")))
          (path (substring line (1+ (length score)))))
     (cons path score)))
 
 (defun docsim--quote-path (path)
   "Wrap PATH in quotes for interpolation into a shell command."
+  (cl-check-type path string)
   (format "\"%s\"" (file-truename path)))
 
 (defun docsim--stemming-stoplist-flags ()
@@ -278,6 +305,7 @@ backed by a file and (2) `docsim-denote-omit-links' is t."
 
 (defun docsim--raw-shell-results-from-buffer (buffer)
   "Pipe contents of BUFFER to `docsim' executable and return a string of results."
+  (cl-check-type buffer buffer)
   (let ((shell-command
          (mapconcat #'identity
                     `(,docsim-executable
@@ -299,6 +327,7 @@ backed by a file and (2) `docsim-denote-omit-links' is t."
 QUERY is either a string containing search terms or a buffer. If
 it's a buffer, treat its contents as the query (or, if it's
 backed by a file, pass that file as an argument to `docsim')."
+  (cl-check-type query docsim-query)
   (cond
    ((stringp query)
     (with-temp-buffer
@@ -326,6 +355,7 @@ backed by a file, pass that file as an argument to `docsim')."
   "Return a list of search-result pairs for QUERY.
 
 QUERY may be either a string or a buffer."
+  (cl-check-type query docsim-query)
   (let ((result (docsim--raw-shell-results query)))
     (if (string-empty-p result)
         (error "No searchable notes found!")
@@ -334,6 +364,8 @@ QUERY may be either a string or a buffer."
 
 (defun docsim--show-results-buffer (search-results query)
   "Pop up buffer listing formatted SEARCH-RESULTS for QUERY."
+  (cl-check-type search-results docsim-score-list)
+  (cl-check-type query docsim-query)
   (let* ((buffer-name (format "*docsim: %s*" (if (bufferp query)
                                                  query
                                                (string-trim query))))
@@ -369,6 +401,7 @@ if `docsim-show-scores' is non-nil.
 Show at most `docsim-limit' results (or all of them, if
 `docsim-limit' is nil)."
   (interactive (list (docsim--read-search-term)))
+  (cl-check-type query string)
   (if (string-empty-p query)
       (error "Can't search with an empty query")
       (docsim--show-results-buffer (docsim--query query) query)))
@@ -390,6 +423,7 @@ If `docsim-omit-denote-links' is non-nil, don't include files
 that seem to be already linked from BUFFER. This can be helpful
 for identifying files that \"should\" be linked but aren't yet."
   (interactive (list (current-buffer)))
+  (cl-check-type buffer buffer)
   (docsim--show-results-buffer (docsim--query buffer) buffer))
 
 (defvar docsim-mode-map
