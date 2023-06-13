@@ -97,13 +97,7 @@
       (should (equal (docsim--search-result-to-org plain-search-result)
                      (format "- 0.4242 :: [[file:%s][%s]]"
                              path
-                             (file-name-nondirectory path)))))
-
-    (let ((docsim-show-scores nil)
-      (should (equal (docsim--search-result-to-org plain-search-result)
-                     (format "- [[file:%s][%s]]"
-                             path
-                             (file-name-nondirectory path))))))))
+                             (file-name-nondirectory path)))))))
 
 (ert-deftest docsim--relative-path-test ()
    (let* ((docsim-search-paths '("~/documents/notes"
@@ -156,33 +150,55 @@
   (should (equal (docsim--denote-ids-in-string text-with-denote-links)
                  '("92830384T918347" "20210426T185629" "20230531T143312"))))
 
-(ert-deftest docsim--denote-ids-in-file-test ()
-  (let ((path (docsim--test-file text-with-denote-links)))
-    (should (equal (docsim--denote-ids-in-file path)
+(ert-deftest docsim--denote-ids-in-buffer-test ()
+  (with-temp-buffer
+    (insert text-with-denote-links)
+    (should (equal (docsim--denote-ids-in-buffer (current-buffer))
                    '("92830384T918347" "20210426T185629" "20230531T143312")))))
 
 (ert-deftest docsim--remove-denote-links-test ()
   (let* ((docsim-omit-denote-links t)
          (path (docsim--test-file text-with-denote-links))
-         (search-result-linked (cons "/tmp/foo/20210426T185629--linked-note.org" 0.0))
-         (search-result-unlinked (cons "/tmp/foo/20201114T143209--unlinked-note.org" 0.0)))
-    (should (equal (docsim--remove-denote-links path (list search-result-linked search-result-unlinked))
-                   (list search-result-unlinked)))))
+         (search-result-linked '("/tmp/foo/20210426T185629--linked-note.org" . "0.4242"))
+         (search-result-unlinked '("/tmp/foo/20201114T143209--unlinked-note.org" . "0.4242")))
+    (with-temp-buffer
+      (insert text-with-denote-links)
+    (should (equal (docsim--remove-denote-links (current-buffer)
+                                                (list search-result-linked search-result-unlinked))
+                   (list search-result-unlinked))))))
 
 (ert-deftest docsim--limit-results-test ()
   (let ((docsim-limit 3))
-    (should (equal (docsim--limit-results '(a b c d e f g))
-                   '(a b c)))
+    (should (equal (docsim--limit-results '(("a" . "0.4242")
+                                            ("b" . "0.4242")
+                                            ("c" . "0.4242")
+                                            ("d" . "0.4242")
+                                            ("e" . "0.4242")
+                                            ("f" . "0.4242")
+                                            ("g" . "0.4242")))
+                   '(("a" . "0.4242") ("b" . "0.4242") ("c" . "0.4242"))))
 
-    (should (equal (docsim--limit-results '(a b))
-                   '(a b)))
+    (should (equal (docsim--limit-results '(("a" . "0.4242") ("b" . "0.4242")))
+                   '(("a" . "0.4242") ("b" . "0.4242"))))
 
     (should (equal (docsim--limit-results '())
                    '())))
 
   (let ((docsim-limit nil))
-    (should (equal (docsim--limit-results '(a b c d e f g))
-                   '(a b c d e f g)))))
+    (should (equal (docsim--limit-results '(("a" . "0.4242")
+                                            ("b" . "0.4242")
+                                            ("c" . "0.4242")
+                                            ("d" . "0.4242")
+                                            ("e" . "0.4242")
+                                            ("f" . "0.4242")
+                                            ("g" . "0.4242")))
+                   '(("a" . "0.4242")
+                     ("b" . "0.4242")
+                     ("c" . "0.4242")
+                     ("d" . "0.4242")
+                     ("e" . "0.4242")
+                     ("f" . "0.4242")
+                     ("g" . "0.4242"))))))
 
 (ert-deftest docsim--parse-search-result-test ()
   ;; A "regular" line of docsim output.
@@ -207,54 +223,6 @@
 
   (should (equal (docsim--quote-path "/usr/local/Hello World")
                  "\"/usr/local/Hello World\"")))
-
-(ert-deftest docsim--compare-shell-command-test ()
-  (let ((docsim-executable "docsim")
-        (docsim-search-paths '("/usr/local/foo" "/usr/local/bar")))
-
-    (let ((docsim-assume-english nil)
-          (docsim-stoplist-path nil))
-      (should (equal (docsim--compare-shell-command "/usr/local/query")
-                     "docsim --best-first --omit-query --show-scores --no-stemming --no-stoplist --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english nil)
-          (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--compare-shell-command "/usr/local/query")
-                     "docsim --best-first --omit-query --show-scores --no-stemming --stoplist \"/usr/local/stoplist\" --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english t)
-          (docsim-stoplist-path nil))
-      (should (equal (docsim--compare-shell-command "/usr/local/query")
-                     "docsim --best-first --omit-query --show-scores --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english t)
-          (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--compare-shell-command "/usr/local/query")
-                     "docsim --best-first --omit-query --show-scores --stoplist \"/usr/local/stoplist\" --query \"/usr/local/query\" \"/usr/local/foo\" \"/usr/local/bar\"")))))
-
-(ert-deftest docsim--search-shell-command-test ()
-  (let ((docsim-executable "docsim")
-        (docsim-search-paths '("/usr/local/foo" "/usr/local/bar")))
-
-    (let ((docsim-assume-english nil)
-          (docsim-stoplist-path nil))
-      (should (equal (docsim--search-shell-command "foo bar baz")
-                     "echo \"foo bar baz\" | docsim --best-first --show-scores --no-stemming --no-stoplist \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english nil)
-          (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--search-shell-command "foo bar baz")
-                     "echo \"foo bar baz\" | docsim --best-first --show-scores --no-stemming --stoplist \"/usr/local/stoplist\" \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english t)
-          (docsim-stoplist-path nil))
-      (should (equal (docsim--search-shell-command "foo bar baz")
-                     "echo \"foo bar baz\" | docsim --best-first --show-scores \"/usr/local/foo\" \"/usr/local/bar\"")))
-
-    (let ((docsim-assume-english t)
-          (docsim-stoplist-path "/usr/local/stoplist"))
-      (should (equal (docsim--search-shell-command "foo bar baz")
-                     "echo \"foo bar baz\" | docsim --best-first --show-scores --stoplist \"/usr/local/stoplist\" \"/usr/local/foo\" \"/usr/local/bar\"")))))
 
 (provide 'docsim-test)
 

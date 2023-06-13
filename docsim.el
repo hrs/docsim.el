@@ -194,24 +194,21 @@ text. If not, do your best by showing the file path."
       (setq i (match-end 0)))
     matches))
 
-
-(defun docsim--denote-ids-in-file (file-name)
-  "Given a file FILE-NAME, return every string that plausible matches a Denote ID."
-  (docsim--denote-ids-in-string (with-temp-buffer
-                                  (insert-file-contents file-name)
+(defun docsim--denote-ids-in-buffer (buffer)
+  "Given a buffer BUFFER, return every string that plausible matches a Denote ID."
+  (docsim--denote-ids-in-string (with-current-buffer buffer
                                   (buffer-string))))
 
-(defun docsim--similar-notes-org (shell-command &optional file-name)
-  "Return an Org-formatted string of results for running SHELL-COMMAND on FILE-NAME."
+(defun docsim--similar-notes-org (search-results)
+  "Return Org-formatted string of SEARCH-RESULTS."
   (concat "Similar notes:\n\n"
           (mapconcat #'identity
-                     (mapcar #'docsim--search-result-to-org
-                             (docsim--similar-notes shell-command file-name))
+                     (mapcar #'docsim--search-result-to-org search-results)
                      "\n")))
 
-(defun docsim--remove-denote-links (file-name search-results)
-  "Return SEARCH-RESULTS excluding notes already linked from FILE-NAME."
-  (let ((linked-denote-ids (docsim--denote-ids-in-file file-name)))
+(defun docsim--remove-denote-links (buffer search-results)
+  "Return SEARCH-RESULTS excluding notes already linked from BUFFER."
+  (let ((linked-denote-ids (docsim--denote-ids-in-buffer buffer)))
     (cl-remove-if (lambda (search-result)
                     (cl-find-if (lambda (denote-id)
                                   (string-match-p denote-id (car search-result)))
@@ -227,16 +224,18 @@ Return them all if `docsim-limit' is nil."
           (cl-subseq search-results 0 docsim-limit)
     search-results))
 
-(defun docsim--similar-notes (shell-command &optional file-name)
-  "Return list of search-results from running SHELL-COMMAND on FILE-NAME.
+(defun docsim--query (query)
+  "Return list of search-results from searching for object QUERY.
+
+QUERY may be either a string or a buffer.
 
 Include no more that `docsim-limit' results, and omit any results
-that already seem to be linked from FILE-NAME, if it's provided
-and if `docsim-denote-omit-links' is t."
-  (let ((search-results (docsim--similarity-results shell-command)))
+that already seem to be linked from QUERY, if (1) it's a buffer
+backed by a file and (2) `docsim-denote-omit-links' is t."
+  (let ((search-results (docsim--similarity-results query)))
     (docsim--limit-results
-     (if (and docsim-omit-denote-links file-name)
-         (docsim--remove-denote-links file-name search-results)
+     (if (and (bufferp query) docsim-omit-denote-links)
+         (docsim--remove-denote-links query search-results)
        search-results))))
 
 (defun docsim--visit-link ()
@@ -264,13 +263,9 @@ and if `docsim-denote-omit-links' is t."
          (path (substring line (1+ (length score)))))
     (cons path score)))
 
-(defun docsim--quote (s)
-  "Wrap S in quotes for interpolation into a shell command."
-  (format "\"%s\"" s))
-
 (defun docsim--quote-path (path)
   "Wrap PATH in quotes for interpolation into a shell command."
-  (docsim--quote (file-truename path)))
+  (format "\"%s\"" (file-truename path)))
 
 (defun docsim--stemming-stoplist-flags ()
   "Return a list of stemming- and stoplist-related flags for the shell command."
@@ -281,77 +276,87 @@ and if `docsim-denote-omit-links' is t."
         '("--no-stemming" "--no-stoplist")
       `("--no-stemming" "--stoplist" ,(docsim--quote-path docsim-stoplist-path)))))
 
-(defun docsim--compare-shell-command (file-name)
-  "Return a string containing the `docsim' command to run on FILE-NAME."
-  (mapconcat #'identity
-             `(,docsim-executable
-               "--best-first"
-               "--omit-query"
-               "--show-scores"
-               ,@(docsim--stemming-stoplist-flags)
-               "--query" ,(docsim--quote-path file-name)
-               ,@(mapcar #'docsim--quote-path docsim-search-paths))
-             " "))
+(defun docsim--raw-shell-results-from-buffer (buffer)
+  "Pipe contents of BUFFER to `docsim' executable and return a string of results."
+  (let ((shell-command
+         (mapconcat #'identity
+                    `(,docsim-executable
+                      "--best-first"
+                      "--show-scores"
+                      ,@(docsim--stemming-stoplist-flags)
+                      ,@(mapcar #'docsim--quote-path docsim-search-paths))
+                    " ")))
 
-(defun docsim--search-shell-command (search-query)
-  "Return a string containing the `docsim' command to run on SEARCH-QUERY."
-  (mapconcat #'identity
-             `("echo"
-               ,(docsim--quote search-query)
-               "|"
-               ,docsim-executable
-               "--best-first"
-               "--show-scores"
-               ,@(docsim--stemming-stoplist-flags)
-               ,@(mapcar #'docsim--quote-path docsim-search-paths))
-             " "))
+    (with-output-to-string
+      (shell-command-on-region (point-min)
+                               (point-max)
+                               shell-command
+                               standard-output))))
 
-(defun docsim--similarity-results (shell-command)
-  "Run SHELL-COMMAND and return a list of search-result pairs."
-  (let ((result (shell-command-to-string shell-command)))
+(defun docsim--raw-shell-results (query)
+  "Run a `docsim' search on QUERY and return a string of results.
+
+QUERY is either a string containing search terms or a buffer. If
+it's a buffer, treat its contents as the query (or, if it's
+backed by a file, pass that file as an argument to `docsim')."
+  (cond
+   ((stringp query)
+    (with-temp-buffer
+      (insert query)
+      (docsim--raw-shell-results-from-buffer (current-buffer))))
+
+   ((and (bufferp query) (not (buffer-file-name query)))
+    (docsim--raw-shell-results-from-buffer query))
+
+   ((bufferp query)
+    (shell-command-to-string
+     (mapconcat #'identity
+                `(,docsim-executable
+                  "--best-first"
+                  "--omit-query"
+                  "--show-scores"
+                  ,@(docsim--stemming-stoplist-flags)
+                  "--query" ,(docsim--quote-path (buffer-file-name query))
+                  ,@(mapcar #'docsim--quote-path docsim-search-paths))
+                " ")))
+
+   (t (error "Not a queryable object: %s" query))))
+
+(defun docsim--similarity-results (query)
+  "Return a list of search-result pairs for QUERY.
+
+QUERY may be either a string or a buffer."
+  (let ((result (docsim--raw-shell-results query)))
     (if (string-empty-p result)
         (error "No searchable notes found!")
       (mapcar #'docsim--parse-search-result
               (split-string (substring result 0 -1) "\n")))))
 
-(defun docsim--show-results-buffer (shell-command buffer-name &optional file-name)
-  "Pop up buffer BUFFER-NAME listing notes returned by SHELL-COMMAND on FILE-NAME."
-  (let ((sidebar-buffer (get-buffer-create buffer-name)))
+(defun docsim--show-results-buffer (search-results query)
+  "Pop up buffer listing formatted SEARCH-RESULTS for QUERY."
+  (let* ((buffer-name (format "*docsim: %s*" (if (bufferp query)
+                                                 query
+                                               (string-trim query))))
+         (sidebar-buffer (get-buffer-create buffer-name)))
     (with-current-buffer sidebar-buffer
       (setq-local buffer-read-only nil)
       (erase-buffer)
-      (insert (docsim--similar-notes-org shell-command file-name))
+      (insert (docsim--similar-notes-org search-results))
       (docsim-mode)
       (goto-char (point-min)))
 
     (pop-to-buffer sidebar-buffer)))
 
-(defun docsim-compare-notes (file-name)
-  "Display a list of notes that look similar to FILE-NAME.
+(defun docsim--read-search-term ()
+  "Read a search term from the minibuffer.
 
-This calls out to the external `docsim' tool to perform textual
-analysis on all the notes in `docsim-search-paths', score them by
-similarity to FILE-NAME, and return the sorted results, best
-first.
+Return the region, if it's active. Otherwise prompt, defaulting
+to the symbol at point."
+  (if (use-region-p)
+      (buffer-substring (region-beginning) (region-end))
+    (read-string "Query: " nil 'docsim-history)))
 
-Include the similarity scores (between 0.0 and 1.0) of each note
-if `docsim-show-scores' is non-nil.
-
-Show at most `docsim-limit' results (or all of them, if
-`docsim-limit' is nil).
-
-If `docsim-omit-denote-links' is non-nil, don't include files
-that seem to be already linked from FILE-NAME. This can be
-helpful for identifying files that \"should\" be linked but
-aren't yet."
-  (interactive (list (buffer-file-name)))
-  (if file-name
-      (docsim--show-results-buffer (docsim--compare-shell-command file-name)
-                                   (format "*similar notes: %s*" (file-name-nondirectory file-name))
-                                   file-name)
-    (error "Can't compare this buffer (have you saved it?)")))
-
-(defun docsim-search-notes (query)
+(defun docsim-search (query)
   "Search for notes similar to QUERY.
 
 This calls out to the external `docsim' tool to perform textual
@@ -363,13 +368,29 @@ if `docsim-show-scores' is non-nil.
 
 Show at most `docsim-limit' results (or all of them, if
 `docsim-limit' is nil)."
-  (interactive (list (if (use-region-p)
-                         (buffer-substring (region-beginning) (region-end))
-                       (read-string "Query: " nil 'docsim-query))))
+  (interactive (list (docsim--read-search-term)))
   (if (string-empty-p query)
       (error "Can't search with an empty query")
-      (docsim--show-results-buffer (docsim--search-shell-command query)
-                                   (format "*search notes: %s*" query))))
+      (docsim--show-results-buffer (docsim--query query) query)))
+
+(defun docsim-search-buffer (buffer)
+  "Display a list of notes that look similar to BUFFER.
+
+This calls out to the external `docsim' tool to perform textual
+analysis on all the notes in `docsim-search-paths', score them by
+similarity to BUFFER, and return the sorted results, best first.
+
+Include the similarity scores (between 0.0 and 1.0) of each note
+if `docsim-show-scores' is non-nil.
+
+Show at most `docsim-limit' results (or all of them, if
+`docsim-limit' is nil).
+
+If `docsim-omit-denote-links' is non-nil, don't include files
+that seem to be already linked from BUFFER. This can be helpful
+for identifying files that \"should\" be linked but aren't yet."
+  (interactive (list (current-buffer)))
+  (docsim--show-results-buffer (docsim--query buffer) buffer))
 
 (defvar docsim-mode-map
   (let ((map (make-sparse-keymap)))
