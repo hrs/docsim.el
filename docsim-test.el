@@ -16,6 +16,67 @@
       (insert content)
       temp-file)))
 
+(ert-deftest docsim--parse-title-markdown-yaml-test ()
+  (with-temp-buffer
+    (insert "---\n"
+            "title: Title of the document!\n"
+            "date: today!\n"
+            "---\n"
+            "some stuff in the body\n")
+    (should (equal (docsim--parse-title-markdown-yaml)
+                   "Title of the document!")))
+
+  (with-temp-buffer
+    (insert "---\n"
+            "date: today!\n"
+            "---\n"
+            "title: This isn't in the metadata block!\n"
+            "some stuff in the body\n")
+    (should (equal (docsim--parse-title-markdown-yaml) nil))))
+
+(ert-deftest docsim--parse-title-org-test ()
+  (with-temp-buffer
+    (insert "#+title: Title of the document!\n"
+            "#+date: today!\n"
+            "some stuff in the body\n")
+    (should (equal (docsim--parse-title-org)
+                   "Title of the document!")))
+
+  (with-temp-buffer
+    (insert "#+author: It's me!\n"
+            "#+date: today!\n"
+            "some stuff in the body\n")
+    (should (equal (docsim--parse-title-org) nil))))
+
+(ert-deftest docsim--search-result-title-test ()
+  ;; Gets title from YAML metadata in a Markdown file.
+  (let* ((content (mapconcat 'identity
+                             '("---"
+                               "title: Title of the document!"
+                               "date: today!"
+                               "---"
+                               "some stuff in the body")
+                             "\n"))
+         (path (docsim--test-file content)))
+    (should (equal (docsim--search-result-title path)
+                   "Title of the document!")))
+
+  ;; Gets title from an Org file.
+  (let* ((content (mapconcat 'identity
+                             '("#+title: Title of the document!"
+                               "#+date: today!"
+                               ""
+                               "some stuff in the body")
+                             "\n"))
+         (path (docsim--test-file content)))
+    (should (equal (docsim--search-result-title path)
+                   "Title of the document!")))
+
+  ;; Returns nil if it can't parse a title.
+  (let* ((path (docsim--test-file "no title in here")))
+    (should (equal (docsim--search-result-title path)
+                   nil))))
+
 (defvar-local plain-lines '("Here's some content! Doesn't really matter what's"
                             "in it. Though let's make sure a line starts with"
                             "title just in case."))
