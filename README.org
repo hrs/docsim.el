@@ -1,6 +1,7 @@
 #+title: =docsim.el=
 #+options: toc:nil num:nil
 
+[[https://melpa.org/#/docsim][https://melpa.org/packages/docsim-badge.svg]]
 [[https://www.gnu.org/licenses/gpl-3.0][https://img.shields.io/badge/License-GPL%20v3-blue.svg]]
 [[https://github.com/hrs/docsim.el/actions/workflows/test.yml][https://github.com/hrs/docsim.el/actions/workflows/test.yml/badge.svg?branch=main]]
 
@@ -34,17 +35,12 @@ you'll need to install that on your =$PATH= first. It's a small Go utility with
 [[https://github.com/hrs/docsim/releases/latest][precompiled binaries]] available for most popular platforms, or you can [[https://github.com/hrs/docsim#installation][install it
 from source]].
 
-Once that's done, just install =docsim.el= like any other package. We're not in
-[[https://melpa.org/#/][MELPA]] (yet!), but there are plenty of alternatives like [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa][quelpa]]. Or
-just clone the repo locally.
-
-With ~use-package~:
+Once that's done, just install =docsim.el= from [[https://melpa.org/#/docsim][MELPA]] like any other package. With
+~use-package~:
 
 #+begin_src emacs-lisp
   (use-package docsim
-    ;; If you've cloned this repo locally:
-    :load-path "~/path/to/this/cloned/repo"
-
+    :ensure t
     :bind (("C-c n s" . docsim-search)
            ("C-c n d" . docsim-search-buffer))
 
@@ -52,7 +48,7 @@ With ~use-package~:
     (docsim-search-paths '("~/directory/where/you/keep/your/notes")))
 #+end_src
 
-If you're installing manually, add =docsim.el= to your load path and:
+Or, if you'd rather install manually, add =docsim.el= to your load path and:
 
 #+begin_src emacs-lisp
   (require 'docsim)
