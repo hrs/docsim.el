@@ -280,6 +280,10 @@ backed by a file and (2) `docsim-denote-omit-links' is t."
          (path (substring line (1+ (length score)))))
     (cons path score)))
 
+(defun docsim--version ()
+  "Get current version of the `docsim-executable'."
+  (string-trim (shell-command-to-string (format "%s --version" docsim-executable))))
+
 (defun docsim--quote-path (path)
   "Wrap PATH in quotes for interpolation into a shell command."
   (cl-check-type path string)
@@ -302,6 +306,7 @@ backed by a file and (2) `docsim-denote-omit-links' is t."
                     `(,docsim-executable
                       "--best-first"
                       "--show-scores"
+                      ,@(when (not (string= (docsim--version) "0.1.3")) '("--stdin"))
                       ,@(docsim--stemming-stoplist-flags)
                       ,@(mapcar #'docsim--quote-path docsim-search-paths))
                     " ")))
@@ -336,7 +341,8 @@ backed by a file, pass that file as an argument to `docsim')."
                   "--omit-query"
                   "--show-scores"
                   ,@(docsim--stemming-stoplist-flags)
-                  "--query" ,(docsim--quote-path (buffer-file-name query))
+                  ,(if (string= (docsim--version) "0.1.3") "--query" "--file")
+                  ,(docsim--quote-path (buffer-file-name query))
                   ,@(mapcar #'docsim--quote-path docsim-search-paths))
                 " ")))
 
