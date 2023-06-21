@@ -80,6 +80,10 @@ already linked from your search results. Configure that like so:
   (setq docsim-omit-denote-links t)
 #+end_src
 
+*WARNING:* =docsim= doesn't respect =.ignore= or =.gitignore= files yet, so
+it'll try to search through =.git= directories, =node_modules=, and so on. That
+should be fixed in the near future.
+
 * But I don't write in English!
 
 Because its author is a monoglot (and because it was easy for them to find a
