@@ -75,7 +75,12 @@
   :group 'docsim)
 
 (defcustom docsim-limit 10
-  "Maximum number of results to show."
+  "Maximum number of results to show.
+
+If nil, show all results. That means returning literally every
+text file in your search paths, which probably isn't a good idea
+if you've got a lot of notes. But do what you want; I'm a
+docstring, not a cop."
   :type '(choice (natnum :tag "Maximum number of links")
                  (const :tag "Show all results" nil))
   :group 'docsim)
@@ -83,13 +88,29 @@
 (defcustom docsim-assume-english t
   "Assume that notes are in English.
 
-If non-nil, `docsim' can assume that the notes it's comparing are
-written in English, and can therefore apply a stoplist and an
-appropriate stemming algorithm to improve comparison accuracy.
+If non-nil, `docsim' will assume that the notes it's comparing
+are written in English, and will therefore apply a stoplist and
+an appropriate stemming algorithm to improve comparison accuracy.
 
 If nil, well, it should still work, but accuracy may not be quite
 as good. Sorry. You can partially mitigate that by setting a
 custom stoplist with `docsim-stoplist-path'."
+  :type 'boolean
+  :group 'docsim)
+
+(defcustom docsim-show-titles t
+  "Parse out document titles and show those in the results buffer.
+
+If non-nil, `docsim' will visit each search result and try to
+parse its title from its contents. In the case of an Org file,
+for example, that'll be the value of the `#+title' keyword.
+
+If nil, `docsim' will show the path of each note relative to the
+search directory in which it appears.
+
+You might want to set this to nil if parsing titles isn't
+reliably working for your type of files, or if you've set a high
+`docsim-limit' and parsing the title from each file is too slow."
   :type 'boolean
   :group 'docsim)
 
@@ -181,8 +202,9 @@ relative to that directory."
 If it's an Org document with a `#+title:', use that as the link
 text. If not, do your best by showing the file path."
   (let* ((path (car search-result))
-         (org-title (docsim--search-result-title path))
-         (link-text (or org-title (docsim--relative-path path)))
+         (link-text (or (and docsim-show-titles
+                             (docsim--search-result-title path))
+                        (docsim--relative-path path)))
          (link (format "[[file:%s][%s]]" path link-text))
          (score (if docsim-show-scores
                     (format "%s :: " (cdr search-result))

@@ -135,9 +135,18 @@
       (should (equal (docsim--search-result-to-org markdown-search-result)
                      (format "- [[file:%s][It's a Markdown file!]]" path))))
 
-    (let ((docsim-show-scores t))
+    (let ((docsim-show-scores t)
+          (docsim-show-titles t))
       (should (equal (docsim--search-result-to-org markdown-search-result)
-                     (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path))))))
+                     (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path))))
+
+    (let ((docsim-show-scores t)
+          (docsim-show-titles nil)
+          (docsim-search-paths (list (file-name-directory path))))
+      (should (equal (docsim--search-result-to-org markdown-search-result)
+                     (format "- 0.4242 :: [[file:%s][%s]]"
+                             path
+                             (docsim--relative-path (expand-file-name path))))))))
 
 (defvar-local text-with-denote-links
     (mapconcat 'identity
