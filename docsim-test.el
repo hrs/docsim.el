@@ -10,20 +10,20 @@
 
 (load-file "docsim.el")
 
-(defun docsim--test-file (content)
-  (let ((temp-file (make-temp-file "docsim-test-")))
+(defun docsim--test-file (content suffix)
+  (let ((temp-file (make-temp-file "docsim-test-" nil suffix)))
     (with-temp-file temp-file
       (insert content)
       temp-file)))
 
-(ert-deftest docsim--parse-title-markdown-yaml-test ()
+(ert-deftest docsim--get-title-markdown-yaml-test ()
   (with-temp-buffer
     (insert "---\n"
             "title: Title of the document!\n"
             "date: today!\n"
             "---\n"
             "some stuff in the body\n")
-    (should (equal (docsim--parse-title-markdown-yaml)
+    (should (equal (docsim--get-title-markdown-yaml)
                    "Title of the document!")))
 
   (with-temp-buffer
@@ -32,23 +32,23 @@
             "---\n"
             "title: This isn't in the metadata block!\n"
             "some stuff in the body\n")
-    (should (equal (docsim--parse-title-markdown-yaml) nil))))
+    (should (equal (docsim--get-title-markdown-yaml) nil))))
 
-(ert-deftest docsim--parse-title-org-test ()
+(ert-deftest docsim--get-title-org-test ()
   (with-temp-buffer
     (insert "#+title: Title of the document!\n"
             "#+date: today!\n"
             "some stuff in the body\n")
-    (should (equal (docsim--parse-title-org)
+    (should (equal (docsim--get-title-org)
                    "Title of the document!")))
 
   (with-temp-buffer
     (insert "#+author: It's me!\n"
             "#+date: today!\n"
             "some stuff in the body\n")
-    (should (equal (docsim--parse-title-org) nil))))
+    (should (equal (docsim--get-title-org) nil))))
 
-(ert-deftest docsim--search-result-title-test ()
+(ert-deftest docsim--get-title-function-default-test ()
   ;; Gets title from YAML metadata in a Markdown file.
   (let* ((content (mapconcat 'identity
                              '("---"
@@ -57,8 +57,8 @@
                                "---"
                                "some stuff in the body")
                              "\n"))
-         (path (docsim--test-file content)))
-    (should (equal (docsim--search-result-title path)
+         (path (docsim--test-file content ".md")))
+    (should (equal (docsim--get-title-function-default path)
                    "Title of the document!")))
 
   ;; Gets title from an Org file.
@@ -68,14 +68,24 @@
                                ""
                                "some stuff in the body")
                              "\n"))
-         (path (docsim--test-file content)))
-    (should (equal (docsim--search-result-title path)
+         (path (docsim--test-file content ".org")))
+    (should (equal (docsim--get-title-function-default path)
                    "Title of the document!")))
 
   ;; Returns nil if it can't parse a title.
-  (let* ((path (docsim--test-file "no title in here")))
-    (should (equal (docsim--search-result-title path)
+  (let* ((path (docsim--test-file "no title in here" ".txt")))
+    (should (equal (docsim--get-title-function-default path)
                    nil))))
+
+(ert-deftest docsim--get-title-function-custom-test ()
+  (cl-flet ((get-title-function (path) "FAKE TITLE"))
+
+    (let ((docsim-get-title-function #'get-title-function)
+          (path (docsim--test-file "#+title: real title" ".org"))
+          (docsim-show-scores nil))
+
+      (should (equal (docsim--search-result-to-org (cons path "0.4242"))
+                     (format "- [[file:%s][FAKE TITLE]]" path))))))
 
 (defvar-local plain-lines '("Here's some content! Doesn't really matter what's"
                             "in it. Though let's make sure a line starts with"
@@ -83,7 +93,7 @@
 
 (ert-deftest docsim--search-result-to-org-with-plain-text-test ()
   (let* ((content (mapconcat 'identity plain-lines "\n"))
-         (path (docsim--test-file content))
+         (path (docsim--test-file content ".txt"))
          (docsim-search-paths (list (file-name-directory path)))
          (plain-search-result (cons path "0.4242")))
 
@@ -110,7 +120,7 @@
 
 (ert-deftest docsim--search-result-to-org-with-org-title-test ()
   (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
-         (path (docsim--test-file content))
+         (path (docsim--test-file content ".org"))
          (org-search-result (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
@@ -128,7 +138,7 @@
                                        "---")
                                      plain-lines)
                              "\n"))
-         (path (docsim--test-file content))
+         (path (docsim--test-file content ".md"))
          (markdown-search-result (cons path "0.4242")))
 
     (let ((docsim-show-scores nil))
@@ -167,7 +177,7 @@
 
 (ert-deftest docsim--remove-denote-links-test ()
   (let* ((docsim-omit-denote-links t)
-         (path (docsim--test-file text-with-denote-links))
+         (path (docsim--test-file text-with-denote-links ".org"))
          (search-result-linked '("/tmp/foo/20210426T185629--linked-note.org" . "0.4242"))
          (search-result-unlinked '("/tmp/foo/20201114T143209--unlinked-note.org" . "0.4242")))
     (with-temp-buffer

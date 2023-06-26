@@ -109,3 +109,26 @@ they show up, but if you add a stoplist they'll be skipped completely.
 
 There's no universal authority on what constitutes "a good stoplist," but here's
 a [[https://code.google.com/archive/p/stop-words/][repo of stoplists for 29 languages]] that might be helpful!
+
+* Search results dont't show titles for my notes' format!
+
+By default =docsim.el= displays the "title" of each file in a results buffer,
+instead of just a filename. It tries to get a decent title: it looks for the
+=#+TITLE:= in Org files, checks for a =title:= key in YAML frontmatter in
+everything else, but otherwise just shows a relative path. Parsing titles from
+every possible file type is an enormous task. It's not =docsim='s job.
+
+If the default titles aren't working for you, you can write your own and point
+~docsim-get-title-function~ to it. Your function should take an absolute
+file path as an argument and return a string that represents the title of that
+file.
+
+For example, to show the name of each search result file without its directory
+and in ALL CAPS:
+
+#+begin_src emacs-lisp
+  (defun my-title-parser (path)
+    (upcase (file-name-nondirectory path)))
+
+  (setq docsim-get-title-function #'my-title-parser)
+#+end_src

@@ -127,6 +127,16 @@ to nil)"
   :type 'string
   :group 'docsim)
 
+(defvar docsim-get-title-function #'docsim--get-title-function-default
+  "Function to use when parsing a title from a search result.
+
+This title will be shown in the search results buffer.
+
+The function should take a string representing the absolute path
+to a file and return a string representing the title to be
+associated with that file. If the function returns nil the search
+results buffer will show the file's relative path.")
+
 (cl-deftype docsim-query ()
   '(or string buffer))
 
@@ -143,7 +153,7 @@ to nil)"
                                  (cl-typep score 'docsim-score))
                                scores)))))
 
-(defun docsim--parse-title-markdown-yaml ()
+(defun docsim--get-title-markdown-yaml ()
   "Attempt to parse `title' from YAML front matter in the current buffer.
 
 This treats the current buffer as if it contains Markdown with
@@ -159,7 +169,7 @@ attempts to parse out and return the value associated with the
         (when (string-match "^title: \\(.*\\)$" yaml)
           (match-string 1 yaml))))))
 
-(defun docsim--parse-title-org ()
+(defun docsim--get-title-org ()
   "Attempt to parse `#+TITLE:' from Org in the current buffer.
 
 This treats the current buffer as if it contains Org text. It
@@ -173,13 +183,14 @@ attempts to parse out and return value associated with the
         (when (search-forward-regexp "^#\\+title:" nil t)
           (org-element-property :value (org-element-context (org-element-at-point))))))))
 
-(defun docsim--search-result-title (path)
+(defun docsim--get-title-function-default (path)
   "Return a title determined by parsing the file at PATH."
   (cl-check-type path string)
   (with-temp-buffer
     (insert-file-contents path)
-    (or (docsim--parse-title-org)
-        (docsim--parse-title-markdown-yaml))))
+  (if (string= "org" (file-name-extension path))
+      (docsim--get-title-org)
+    (docsim--get-title-markdown-yaml))))
 
 (defun docsim--relative-path (path)
   "Return the relative path of PATH in one of `docsim-search-paths'.
@@ -203,7 +214,7 @@ If it's an Org document with a `#+title:', use that as the link
 text. If not, do your best by showing the file path."
   (let* ((path (car search-result))
          (link-text (or (and docsim-show-titles
-                             (docsim--search-result-title path))
+                             (funcall docsim-get-title-function path))
                         (docsim--relative-path path)))
          (link (format "[[file:%s][%s]]" path link-text))
          (score (if docsim-show-scores
