@@ -36,8 +36,8 @@ jobs:
 
     - name: Run tests
       if: matrix.allow_failure != true
-      run: 'make && make test'
+      run: 'make test'
 
     - name: Run tests (allow failure)
       if: matrix.allow_failure == true
-      run: 'make && make test || true'
+      run: 'make test || true'

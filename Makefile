@@ -1,12 +1,14 @@
 .PHONY: test
 test: docsim.el docsim-test.el
 	emacs --quick --batch \
-	-l ert \
+	-f package-initialize \
+  --eval "(add-to-list 'package-archives '(\"nongnu\" . \"https://elpa.nongnu.org/nongnu/\") t)" \
+  --eval "(when (not (package-installed-p 'buttercup)) (package-refresh-contents) (package-install 'buttercup))" \
+	-l buttercup \
 	-l org \
 	-l org-element \
-	-l docsim-test.el \
-	--eval "(setq ert-batch-backtrace-right-margin 10000)" \
-	-f ert-run-tests-batch-and-exit
+	-L . \
+	-f buttercup-run-discover
 
 .PHONY: lint
 lint: byte_compile package_lint

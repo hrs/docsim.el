@@ -153,13 +153,13 @@ results buffer will show the file's relative path.")
                                  (cl-typep score 'docsim-score))
                                scores)))))
 
-(defun docsim--get-title-markdown-yaml ()
+(defun docsim--get-title-yaml ()
   "Attempt to parse `title' from YAML front matter in the current buffer.
 
-This treats the current buffer as if it contains Markdown with
-YAML front matter, as used, for example, in Jekyll blog posts. It
-attempts to parse out and return the value associated with the
-`title' key. If that's not found, return nil."
+This treats the current buffer as if it contains YAML front
+matter, as used, for example, in Jekyll blog posts. It attempts
+to parse out and return the value associated with the `title'
+key. If that's not found, return nil."
   (save-excursion
     (goto-char (point-min))
     (when (looking-at "^---$")
@@ -190,7 +190,7 @@ attempts to parse out and return value associated with the
     (insert-file-contents path)
   (if (string= "org" (file-name-extension path))
       (docsim--get-title-org)
-    (docsim--get-title-markdown-yaml))))
+    (docsim--get-title-yaml))))
 
 (defun docsim--relative-path (path)
   "Return the relative path of PATH in one of `docsim-search-paths'.

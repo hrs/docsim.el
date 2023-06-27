@@ -8,6 +8,7 @@
 
 ;;; Code:
 
+(require 'buttercup)
 (load-file "docsim.el")
 
 (defun docsim--test-file (content suffix)
@@ -16,147 +17,183 @@
       (insert content)
       temp-file)))
 
-(ert-deftest docsim--get-title-markdown-yaml-test ()
-  (with-temp-buffer
-    (insert "---\n"
-            "title: Title of the document!\n"
-            "date: today!\n"
-            "---\n"
-            "some stuff in the body\n")
-    (should (equal (docsim--get-title-markdown-yaml)
-                   "Title of the document!")))
+(describe "docsim--get-title-yaml"
+          (it "returns the title: from YAML frontmatter"
+              (with-temp-buffer
+                (insert "---\n"
+                        "title: Title of the document!\n"
+                        "date: today!\n"
+                        "---\n"
+                        "some stuff in the body\n")
+                (expect (docsim--get-title-yaml) :to-equal "Title of the document!")))
 
-  (with-temp-buffer
-    (insert "---\n"
-            "date: today!\n"
-            "---\n"
-            "title: This isn't in the metadata block!\n"
-            "some stuff in the body\n")
-    (should (equal (docsim--get-title-markdown-yaml) nil))))
+          (it "doesn't read a title: keyword if it's not in YAML frontmatter"
+              (with-temp-buffer
+                (insert "---\n"
+                        "date: today!\n"
+                        "---\n"
+                        "title: This isn't in the metadata block!\n"
+                        "some stuff in the body\n")
+                (expect (docsim--get-title-yaml) :to-be nil))))
 
-(ert-deftest docsim--get-title-org-test ()
-  (with-temp-buffer
-    (insert "#+title: Title of the document!\n"
-            "#+date: today!\n"
-            "some stuff in the body\n")
-    (should (equal (docsim--get-title-org)
-                   "Title of the document!")))
+(describe "docsim--get-title-org"
+          (it "returns the value of the #+title: keyword, if there is one"
+              (with-temp-buffer
+                (insert "#+title: Title of the document!\n"
+                        "#+date: today!\n"
+                        "some stuff in the body\n")
+                (expect (docsim--get-title-org) :to-equal "Title of the document!")))
 
-  (with-temp-buffer
-    (insert "#+author: It's me!\n"
-            "#+date: today!\n"
-            "some stuff in the body\n")
-    (should (equal (docsim--get-title-org) nil))))
+          (it "returns nil if there's no #+title: keyword"
+              (with-temp-buffer
+                (insert "#+author: It's me!\n"
+                        "#+date: today!\n"
+                        "some stuff in the body\n")
+                (expect (docsim--get-title-org) :to-be nil))))
 
-(ert-deftest docsim--get-title-function-default-test ()
-  ;; Gets title from YAML metadata in a Markdown file.
-  (let* ((content (mapconcat 'identity
-                             '("---"
-                               "title: Title of the document!"
-                               "date: today!"
-                               "---"
-                               "some stuff in the body")
-                             "\n"))
-         (path (docsim--test-file content ".md")))
-    (should (equal (docsim--get-title-function-default path)
-                   "Title of the document!")))
+(describe "docsim--get-title-function-default"
+          (it "returns the title: from YAML frontmatter when given a Markdown document"
+              (let* ((content (mapconcat 'identity
+                                         '("---"
+                                           "title: Title of the document!"
+                                           "date: today!"
+                                           "---"
+                                           "some stuff in the body")
+                                         "\n"))
+                     (path (docsim--test-file content ".md")))
+                (expect (docsim--get-title-function-default path) :to-equal "Title of the document!")))
 
-  ;; Gets title from an Org file.
-  (let* ((content (mapconcat 'identity
+          (it "returns the #+title: when given an Org document"
+              (let* ((content (mapconcat 'identity
                              '("#+title: Title of the document!"
                                "#+date: today!"
                                ""
                                "some stuff in the body")
                              "\n"))
-         (path (docsim--test-file content ".org")))
-    (should (equal (docsim--get-title-function-default path)
-                   "Title of the document!")))
+                     (path (docsim--test-file content ".org")))
+                (expect (docsim--get-title-function-default path) :to-equal "Title of the document!")))
 
-  ;; Returns nil if it can't parse a title.
-  (let* ((path (docsim--test-file "no title in here" ".txt")))
-    (should (equal (docsim--get-title-function-default path)
-                   nil))))
+          (it "returns nil if it can't parse a title"
+              (let* ((path (docsim--test-file "no title in here" ".txt")))
+                (expect (docsim--get-title-function-default path) :to-be nil))))
 
-(ert-deftest docsim--get-title-function-custom-test ()
-  (cl-flet ((get-title-function (path) "FAKE TITLE"))
+(describe "docsim--relative-path"
+          (it "handles tilde expansion"
+              (let* ((docsim-search-paths '("~/documents/notes"
+                                            "~/documents/blog")))
+                (expect (docsim--relative-path "~/documents/notes/foo/bar.org")
+                        :to-equal "foo/bar.org")))
 
-    (let ((docsim-get-title-function #'get-title-function)
-          (path (docsim--test-file "#+title: real title" ".org"))
-          (docsim-show-scores nil))
-
-      (should (equal (docsim--search-result-to-org (cons path "0.4242"))
-                     (format "- [[file:%s][FAKE TITLE]]" path))))))
+          (it "handles absolute paths"
+              (let* ((docsim-search-paths '("~/documents/notes"
+                                            "~/documents/blog")))
+                (expect (docsim--relative-path (expand-file-name "~/documents/blog/_posts/docsim.md"))
+                        :to-equal "_posts/docsim.md"))))
 
 (defvar-local plain-lines '("Here's some content! Doesn't really matter what's"
                             "in it. Though let's make sure a line starts with"
                             "title just in case."))
 
-(ert-deftest docsim--search-result-to-org-with-plain-text-test ()
-  (let* ((content (mapconcat 'identity plain-lines "\n"))
-         (path (docsim--test-file content ".txt"))
-         (docsim-search-paths (list (file-name-directory path)))
-         (plain-search-result (cons path "0.4242")))
+(describe "docsim--search-result-to-org"
+          (it "can handle a user-specified function"
+              (cl-flet ((get-title-function (path) "FAKE TITLE"))
 
-    (let ((docsim-show-scores nil))
-      (should (equal (docsim--search-result-to-org plain-search-result)
-                     (format "- [[file:%s][%s]]"
-                             path
-                             (file-name-nondirectory path)))))
+                (let ((docsim-get-title-function #'get-title-function)
+                      (path (docsim--test-file "#+title: real title" ".org"))
+                      (docsim-show-scores nil))
+                  (expect (docsim--search-result-to-org (cons path "0.4242"))
+                          :to-equal (format "- [[file:%s][FAKE TITLE]]" path)))))
 
-    (let ((docsim-show-scores t))
-      (should (equal (docsim--search-result-to-org plain-search-result)
-                     (format "- 0.4242 :: [[file:%s][%s]]"
-                             path
-                             (file-name-nondirectory path)))))))
+          (describe "displaying the relative path to a plain text file"
+                    (it "shows scores if docsim-show-scores is t"
+                        (let* ((content (mapconcat 'identity plain-lines "\n"))
+                               (path (docsim--test-file content ".txt"))
+                               (docsim-search-paths (list (file-name-directory path)))
+                               (plain-search-result (cons path "0.4242"))
+                               (docsim-show-scores t))
+                          (expect (docsim--search-result-to-org plain-search-result)
+                                  :to-equal
+                                  (format "- 0.4242 :: [[file:%s][%s]]"
+                                          path
+                                          (file-name-nondirectory path)))))
 
-(ert-deftest docsim--relative-path-test ()
-   (let* ((docsim-search-paths '("~/documents/notes"
-                                 "~/documents/blog")))
-     (should (equal (docsim--relative-path "~/documents/notes/foo/bar.org")
-                    "foo/bar.org"))
+                    (it "doesn't show scores if docsim-show-scores is nil"
+                        (let* ((content (mapconcat 'identity plain-lines "\n"))
+                               (path (docsim--test-file content ".txt"))
+                               (docsim-search-paths (list (file-name-directory path)))
+                               (plain-search-result (cons path "0.4242"))
+                               (docsim-show-scores nil))
+                          (expect (docsim--search-result-to-org plain-search-result)
+                                  :to-equal
+                                  (format "- [[file:%s][%s]]"
+                                          path
+                                          (file-name-nondirectory path))))))
 
-     (should (equal (docsim--relative-path (expand-file-name "~/documents/blog/_posts/docsim.md"))
-                    "_posts/docsim.md"))))
+          (describe "displaying the title of an Org file"
+                    (it "shows scores if docsim-show-scores is t"
+                        (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
+                               (path (docsim--test-file content ".org"))
+                               (org-search-result (cons path "0.4242"))
+                               (docsim-show-scores nil))
+                          (expect (docsim--search-result-to-org org-search-result)
+                                  :to-equal (format "- [[file:%s][It's an Org file!]]" path))))
 
-(ert-deftest docsim--search-result-to-org-with-org-title-test ()
-  (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
-         (path (docsim--test-file content ".org"))
-         (org-search-result (cons path "0.4242")))
+                    (it "doesn't show scores if docsim-show-scores is nil"
+                        (let* ((content (mapconcat 'identity (cons "#+title: It's an Org file!" plain-lines) "\n"))
+                               (path (docsim--test-file content ".org"))
+                               (org-search-result (cons path "0.4242"))
+                               (docsim-show-scores t))
+                          (expect (docsim--search-result-to-org org-search-result)
+                                  :to-equal
+                                  (format "- 0.4242 :: [[file:%s][It's an Org file!]]" path))))))
 
-    (let ((docsim-show-scores nil))
-      (should (equal (docsim--search-result-to-org org-search-result)
-                     (format "- [[file:%s][It's an Org file!]]" path))))
+          (describe "displaying the title of a file with YAML frontmatter"
+                    (it "shows scores if docsim-show-scores is t"
+                        (let* ((content (mapconcat 'identity
+                                                   (append '("---"
+                                                             "title: It's a Markdown file!"
+                                                             "---")
+                                                           plain-lines)
+                                                   "\n"))
+                               (path (docsim--test-file content ".md"))
+                               (markdown-search-result (cons path "0.4242"))
+                               (docsim-show-scores t)
+                               (docsim-show-titles t))
+                          (expect (docsim--search-result-to-org markdown-search-result)
+                                  :to-equal
+                                  (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path))))
 
-    (let ((docsim-show-scores t))
-      (should (equal (docsim--search-result-to-org org-search-result)
-                     (format "- 0.4242 :: [[file:%s][It's an Org file!]]" path))))))
+                    (it "doesn't show scores if docsim-show-scores is nil"
+                        (let* ((content (mapconcat 'identity
+                                                   (append '("---"
+                                                             "title: It's a Markdown file!"
+                                                             "---")
+                                                           plain-lines)
+                                                   "\n"))
+                               (path (docsim--test-file content ".md"))
+                               (markdown-search-result (cons path "0.4242"))
+                               (docsim-show-scores nil))
+                          (expect (docsim--search-result-to-org markdown-search-result)
+                                  :to-equal
+                                  (format "- [[file:%s][It's a Markdown file!]]" path))))
 
-(ert-deftest docsim--search-result-to-org-with-markdown-yaml-title-test ()
-  (let* ((content (mapconcat 'identity
-                             (append '("---"
-                                       "title: It's a Markdown file!"
-                                       "---")
-                                     plain-lines)
-                             "\n"))
-         (path (docsim--test-file content ".md"))
-         (markdown-search-result (cons path "0.4242")))
-
-    (let ((docsim-show-scores nil))
-      (should (equal (docsim--search-result-to-org markdown-search-result)
-                     (format "- [[file:%s][It's a Markdown file!]]" path))))
-
-    (let ((docsim-show-scores t)
-          (docsim-show-titles t))
-      (should (equal (docsim--search-result-to-org markdown-search-result)
-                     (format "- 0.4242 :: [[file:%s][It's a Markdown file!]]" path))))
-
-    (let ((docsim-show-scores t)
-          (docsim-show-titles nil)
-          (docsim-search-paths (list (file-name-directory path))))
-      (should (equal (docsim--search-result-to-org markdown-search-result)
-                     (format "- 0.4242 :: [[file:%s][%s]]"
-                             path
-                             (docsim--relative-path (expand-file-name path))))))))
+                    (it "shows relative paths instead of titles if docsim-show-titles is nil"
+                        (let* ((content (mapconcat 'identity
+                                                   (append '("---"
+                                                             "title: It's a Markdown file!"
+                                                             "---")
+                                                           plain-lines)
+                                                   "\n"))
+                               (path (docsim--test-file content ".md"))
+                               (markdown-search-result (cons path "0.4242"))
+                               (docsim-show-scores t)
+                               (docsim-show-titles nil)
+                               (docsim-search-paths (list (file-name-directory path))))
+                          (expect (docsim--search-result-to-org markdown-search-result)
+                                  :to-equal
+                                  (format "- 0.4242 :: [[file:%s][%s]]"
+                                          path
+                                          (docsim--relative-path (expand-file-name path)))))))
 
 (defvar-local text-with-denote-links
     (mapconcat 'identity
@@ -165,83 +202,105 @@
                  "And some things 10384718T204817 that aren't!")
                "\n"))
 
-(ert-deftest docsim--denote-ids-in-string-test ()
-  (should (equal (docsim--denote-ids-in-string text-with-denote-links)
-                 '("92830384T918347" "20210426T185629" "20230531T143312"))))
+(describe "docsim--denote-ids-in-string"
+          (it "returns IDs of linked Denote notes in a string"
+              (expect (docsim--denote-ids-in-string text-with-denote-links)
+                      :to-equal
+                      '("92830384T918347" "20210426T185629" "20230531T143312"))))
 
-(ert-deftest docsim--denote-ids-in-buffer-test ()
-  (with-temp-buffer
-    (insert text-with-denote-links)
-    (should (equal (docsim--denote-ids-in-buffer (current-buffer))
-                   '("92830384T918347" "20210426T185629" "20230531T143312")))))
+(describe "docsim--denote-ids-in-buffer"
+          (it "returns IDs of linked Denote notes in a buffer"
+              (with-temp-buffer
+                (insert text-with-denote-links)
+                (expect (docsim--denote-ids-in-buffer (current-buffer))
+                        :to-equal
+                        '("92830384T918347" "20210426T185629" "20230531T143312")))))
 
-(ert-deftest docsim--remove-denote-links-test ()
-  (let* ((docsim-omit-denote-links t)
-         (path (docsim--test-file text-with-denote-links ".org"))
-         (search-result-linked '("/tmp/foo/20210426T185629--linked-note.org" . "0.4242"))
-         (search-result-unlinked '("/tmp/foo/20201114T143209--unlinked-note.org" . "0.4242")))
-    (with-temp-buffer
-      (insert text-with-denote-links)
-    (should (equal (docsim--remove-denote-links (current-buffer)
-                                                (list search-result-linked search-result-unlinked))
-                   (list search-result-unlinked))))))
+(describe "docsim--remove-denote-links"
+          (it "filters search results to remove already-linked Denote notes"
+              (let* ((docsim-omit-denote-links t)
+                     (path (docsim--test-file text-with-denote-links ".org"))
+                     (search-result-linked '("/tmp/foo/20210426T185629--linked-note.org" . "0.4242"))
+                     (search-result-unlinked '("/tmp/foo/20201114T143209--unlinked-note.org" . "0.4242")))
+                (with-temp-buffer
+                  (insert text-with-denote-links)
+                  (expect (docsim--remove-denote-links (current-buffer)
+                                                       (list search-result-linked search-result-unlinked))
+                          :to-equal
+                          (list search-result-unlinked))))))
 
-(ert-deftest docsim--limit-results-test ()
-  (let ((docsim-limit 3))
-    (should (equal (docsim--limit-results '(("a" . "0.4242")
-                                            ("b" . "0.4242")
-                                            ("c" . "0.4242")
-                                            ("d" . "0.4242")
-                                            ("e" . "0.4242")
-                                            ("f" . "0.4242")
-                                            ("g" . "0.4242")))
-                   '(("a" . "0.4242") ("b" . "0.4242") ("c" . "0.4242"))))
+(describe "docsim--limit-results"
+          (it "returns the number of results supplied if given enough"
+              (let ((docsim-limit 3))
+                (expect (docsim--limit-results '(("a" . "0.4242")
+                                                 ("b" . "0.4242")
+                                                 ("c" . "0.4242")
+                                                 ("d" . "0.4242")
+                                                 ("e" . "0.4242")
+                                                 ("f" . "0.4242")
+                                                 ("g" . "0.4242")))
+                        :to-equal '(("a" . "0.4242")
+                                    ("b" . "0.4242")
+                                    ("c" . "0.4242")))))
 
-    (should (equal (docsim--limit-results '(("a" . "0.4242") ("b" . "0.4242")))
-                   '(("a" . "0.4242") ("b" . "0.4242"))))
+          (it "returns all the results if there aren't enough"
+              (let ((docsim-limit 3))
+                (expect (docsim--limit-results '(("a" . "0.4242") ("b" . "0.4242")))
+                        :to-equal '(("a" . "0.4242") ("b" . "0.4242")))))
 
-    (should (equal (docsim--limit-results '())
-                   '())))
+          (it "returns an empty list if given one"
+              (let ((docsim-limit 3))
+                (expect (docsim--limit-results '()) :to-equal '())))
 
-  (let ((docsim-limit nil))
-    (should (equal (docsim--limit-results '(("a" . "0.4242")
-                                            ("b" . "0.4242")
-                                            ("c" . "0.4242")
-                                            ("d" . "0.4242")
-                                            ("e" . "0.4242")
-                                            ("f" . "0.4242")
-                                            ("g" . "0.4242")))
-                   '(("a" . "0.4242")
-                     ("b" . "0.4242")
-                     ("c" . "0.4242")
-                     ("d" . "0.4242")
-                     ("e" . "0.4242")
-                     ("f" . "0.4242")
-                     ("g" . "0.4242"))))))
+          (it "returns all the results if docsim-limit is nil"
+              (let ((docsim-limit nil))
+                (expect (docsim--limit-results '(("a" . "0.4242")
+                                                 ("b" . "0.4242")
+                                                 ("c" . "0.4242")
+                                                 ("d" . "0.4242")
+                                                 ("e" . "0.4242")
+                                                 ("f" . "0.4242")
+                                                 ("g" . "0.4242")))
+                        :to-equal
+                        '(("a" . "0.4242")
+                          ("b" . "0.4242")
+                          ("c" . "0.4242")
+                          ("d" . "0.4242")
+                          ("e" . "0.4242")
+                          ("f" . "0.4242")
+                          ("g" . "0.4242"))))))
 
-(ert-deftest docsim--parse-search-result-test ()
-  ;; A "regular" line of docsim output.
-  (should (equal (docsim--parse-search-result "0.4242\t/tmp/foo/bar.org")
-                 (cons "/tmp/foo/bar.org" "0.4242")))
+(describe "docsim--parse-search-result"
+          (it "parses a \"regular\" line of docsim output"
+              (expect (docsim--parse-search-result "0.4242\t/tmp/foo/bar.org")
+                      :to-equal
+                      (cons "/tmp/foo/bar.org" "0.4242")))
 
-  ;; An unexpected score length.
-  (should (equal (docsim--parse-search-result "0.42424242\t/tmp/foo/Hello Foo.org")
-                 (cons "/tmp/foo/Hello Foo.org" "0.42424242")))
+          (it "parses an unexpected score length"
+              (expect (docsim--parse-search-result "0.42424242\t/tmp/foo/Hello Foo.org")
+                      :to-equal
+                      (cons "/tmp/foo/Hello Foo.org" "0.42424242")))
 
-  ;; A path with a space in it.
-  (should (equal (docsim--parse-search-result "0.4242\t/tmp/foo/Hello Foo.org")
-                 (cons "/tmp/foo/Hello Foo.org" "0.4242")))
+          (it "parses a path with a space in it"
+              (expect (docsim--parse-search-result "0.4242\t/tmp/foo/Hello Foo.org")
+                      :to-equal
+                      (cons "/tmp/foo/Hello Foo.org" "0.4242")))
 
-  ;; A path with a tab in it.
-  (should (equal (docsim--parse-search-result "0.4242\t/tmp/foo/Hello\tFoo.org")
-                 (cons "/tmp/foo/Hello\tFoo.org" "0.4242"))))
+          (it "parses a path with a tab in it"
+              (expect (docsim--parse-search-result "0.4242\t/tmp/foo/Hello\tFoo.org")
+                      :to-equal
+                      (cons "/tmp/foo/Hello\tFoo.org" "0.4242"))))
 
-(ert-deftest docsim--quote-path-test ()
-  (should (equal (docsim--quote-path "/usr/local/foo")
-                 "\"/usr/local/foo\""))
+(describe "docsim--quote-path"
+          (it "wraps a path in quotes"
+              (expect (docsim--quote-path "/usr/local/foo")
+                      :to-equal
+                      "\"/usr/local/foo\""))
 
-  (should (equal (docsim--quote-path "/usr/local/Hello World")
-                 "\"/usr/local/Hello World\"")))
+          (it "handles spaces in filenames"
+              (expect (docsim--quote-path "/usr/local/Hello World")
+                      :to-equal
+                      "\"/usr/local/Hello World\"")))
 
 (provide 'docsim-test)
 
